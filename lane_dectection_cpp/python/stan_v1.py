@@ -133,8 +133,8 @@ while success:
 
     ## Choosing points for perspective transformation
     height, width = frame.shape[:2]
-    tl = (int(width * 0.80), int(height * 0.65))
-    tr = (int(width * 0.25), int(height * 0.65))
+    tl = (int(width * 0.69), int(height * 0.45))
+    tr = (int(width * 0.31), int(height * 0.65))
     bl = (int(0), int(height))
     br = (int(width), int(height))
 

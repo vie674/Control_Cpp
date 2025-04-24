@@ -3,33 +3,26 @@
 #include <iostream>
 #include <cmath>
 #include "utils.hpp"
-//#include <serial/serial.h>
+
 
 
 int main() {
    // 1. Mở camera
-   cv::VideoCapture vidcap(0);
+   cv::VideoCapture vidcap("output_video.mp4");
    if (!vidcap.isOpened()) {
        std::cerr << "Failed to open camera" << std::endl;
        return -1;
    }
-   /*
+   
    // 2. Mở cổng serial
-   serial::Serial ser;
-   try {
-       ser.setPort("/dev/ttyACM0");
-       ser.setBaudrate(115200);
-       ser.setTimeout(serial::Timeout::simpleTimeout(1000));
-       ser.open();
-   } catch (const std::exception& e) {
-       std::cerr << "Failed to open serial port: " << e.what() << std::endl;
-       return -1;
-   }
-   /*
-    cv::Mat cameraMatrix, distCoeffs;
-    cameraMatrix = loadMatrix("cameraMatrix.txt");
-    distCoeffs = loadMatrix("cameraDistortion.txt");
-    */
+   //std::string portName = "/dev/ttyACM0";
+   //LibSerial::SerialPort ser;
+   //initializeSerial(ser, portName);
+    
+    //cv::Mat cameraMatrix, distCoeffs;
+    cv::Mat cameraMatrix = loadMatrix("data/cameraMatrix.txt", 3, 3,' ');         
+    cv::Mat distCoeffs   = loadMatrix("data/cameraDistortion.txt", 1, 5,' '); 
+    
     cv::Mat frame, warped, mask, overlay;
     std::vector<int> prevLx, prevRx;
 
@@ -59,27 +52,31 @@ int main() {
         overlay = warped.clone();
         vehicleState states;
 
-        if (lx.size() <= 1 && rx.size() > 3) {
+        if (lx.size() <= 1 && rx.size() >= 3) {
             states = handleRightLaneOnly(rx, overlay);
         }
-        else if (lx.size() > 3 && rx.size() <= 1) {
+        else if (lx.size() >= 3 && rx.size() <= 1) {
             states = handleLeftLaneOnly(lx, overlay);
         }
         else if (lx.size() >= 2 && rx.size() >=2) {
             states = handleBothLanes(lx, rx, overlay);
         }
         else {
-            break;
+            states.offset = 0;
+            states.angle_y = 0;
+            states.curvature = 0;
         }
 
         int delta = stanleyControl(states.offset, states.angle_y, 0.4, 0.79);
         int steeringAngle = 80 + delta;
         
-        sendToSerial(ser, 4900, 80 + denta);
+        //sendToSerial(ser, 4700, steeringAngle);
 
-        auto result = visualize(frame, warped, overlay, pts1, pts2, denta, offset, angle_y);
+        auto result = visualize(frame, warped, overlay, pts1, pts2, delta, states);
         cv::imshow("Lane Detection", result);
-
+        cv::imshow("Tranformation", warped);
+        cv::imshow("Mask", mask);
+        cv::imshow("Overlay", overlay);
         if (cv::waitKey(10) == 27) break;
     }
 

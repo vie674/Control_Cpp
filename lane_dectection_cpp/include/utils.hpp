@@ -1,0 +1,72 @@
+// File: utils.hpp
+#ifndef UTILS_HPP
+#define UTILS_HPP
+
+#include <opencv2/opencv.hpp>
+#include <string>
+#include <vector>
+#include <libserial/SerialPort.h>
+
+#define PIXEL_TO_METER 0.000914f
+
+// Cấu trúc lưu trạng thái xe
+struct vehicleState {
+    float curvature = 0.0f;
+    float angle_y = 0.0f;
+    float offset = 0.0f;
+};
+
+// Hàm nạp ma trận từ file
+cv::Mat loadMatrix(const std::string& path, int rows, int cols, char delimiter);
+
+// Bỏ biến dạng ảnh sử dụng camera matrix và distortion coeffs
+cv::Mat undistortImage(const cv::Mat& image, const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs);
+
+// Chuyển đổi màu để phát hiện lane (white + yellow)
+cv::Mat HSVColorSelection(const cv::Mat& image);
+
+// Biến đổi phối cảnh ảnh
+cv::Mat perspectiveTransform(const cv::Mat& frame, std::vector<cv::Point2f>& pts1, std::vector<cv::Point2f>& pts2);
+
+// Histogram (khởi tạo)
+cv::Mat getHistogram(const cv::Mat& mask);
+
+// Tìm base (điểm bắt đầu lane)
+int getBase(const cv::Mat& hist, int start, int end);
+
+// Phát hiện các điểm làn đường (dạng cây)
+std::vector<int> detectLanePoints(const cv::Mat& mask, int base);
+
+// Vẽ đa thức lên ảnh
+void drawPolynomial(cv::Mat& image, const cv::Vec3f& coeffs, const cv::Scalar& color, int step) ;
+
+// Fit đa thức bậc 2 từ tập điểm (y^2, y, 1)
+cv::Vec3f fitPolynomial(const std::vector<cv::Point>& pts);
+
+// Tính độ cong (radius of curvature)
+float computeCurvature(const cv::Vec3f& fit, float y_eval, float scale_factor);
+// Tính góc lệch (từ slope)
+float calculateAngle(float slope);
+
+// Xử lý trường hợp chỉ có làn phải
+vehicleState handleRightLaneOnly(const std::vector<int>& rx, cv::Mat& overlay);
+
+// Xử lý trường hợp chỉ có làn trái
+vehicleState handleLeftLaneOnly(const std::vector<int>& lx, cv::Mat& overlay);
+
+// Xử lý khi có cả 2 làn
+vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>& rx, cv::Mat& overlay);
+
+// Stanley Control (điều khiển vô lăng theo lỗi phương ngang và góc)
+int stanleyControl(double e, double psi, double v, double k);
+
+void sendToSerial(LibSerial::SerialPort& serial_port, int motor_speed, int servo_angle);
+bool initializeSerial(LibSerial::SerialPort& serial, const std::string& port_name);
+
+
+// Hiển thị ảnh kết quả với lane và hướng điều khiển
+cv::Mat visualize(const cv::Mat& original, const cv::Mat& warped, const cv::Mat& overlay,
+                  const std::vector<cv::Point2f>& pts1, const std::vector<cv::Point2f>& pts2,
+                  double denta, vehicleState states);
+
+#endif // UTILS_HPP
