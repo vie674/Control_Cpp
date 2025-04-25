@@ -16,11 +16,14 @@ struct vehicleState {
     float offset = 0.0f;
 };
 
-// Hàm nạp ma trận từ file
-cv::Mat loadMatrix(const std::string& path, int rows, int cols, char delimiter);
+struct UndistortData {
+    cv::Mat map1, map2;
+    cv::Rect roi;
+};
 
 // Bỏ biến dạng ảnh sử dụng camera matrix và distortion coeffs
-cv::Mat undistortImage(const cv::Mat& image, const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs);
+UndistortData setupUndistort(const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs, cv::Size imageSize) ;
+cv::Mat undistortFrame(const cv::Mat& frame, const UndistortData& data);
 
 // Chuyển đổi màu để phát hiện lane (white + yellow)
 cv::Mat HSVColorSelection(const cv::Mat& image);

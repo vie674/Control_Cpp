@@ -8,7 +8,7 @@
 
 int main() {
    // 1. Mở camera
-   cv::VideoCapture vidcap("output_video.mp4");
+   cv::VideoCapture vidcap("thap.mp4");
    if (!vidcap.isOpened()) {
        std::cerr << "Failed to open camera" << std::endl;
        return -1;
@@ -20,8 +20,19 @@ int main() {
    //initializeSerial(ser, portName);
     
     //cv::Mat cameraMatrix, distCoeffs;
-    cv::Mat cameraMatrix = loadMatrix("data/cameraMatrix.txt", 3, 3,' ');         
-    cv::Mat distCoeffs   = loadMatrix("data/cameraDistortion.txt", 1, 5,' '); 
+       // === Thông số nội tại của camera ===
+    cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) <<
+    262.08953333143063, 0.0,               330.77574325128484,
+    0.0,               263.57901348164575, 250.50298224489268,
+    0.0,               0.0,                1.0);
+
+   // === Hệ số méo ===
+    cv::Mat distCoeffs = (cv::Mat_<double>(1, 5) <<
+        -0.27166331922859776, 0.09924985737514846,
+        -0.0002707688044880526, 0.0006724194580262318,
+        -0.01935517123682299);
+
+    UndistortData undistortData = setupUndistort(cameraMatrix, distCoeffs, cv::Size(640, 480));
     
     cv::Mat frame, warped, mask, overlay;
     std::vector<int> prevLx, prevRx;
@@ -30,7 +41,7 @@ int main() {
         vidcap >> frame;
         if (frame.empty()) break;
 
-        //frame = undistortImage(frame, cameraMatrix, distCoeffs);
+        frame = undistortFrame(frame, undistortData);
         cv::resize(frame, frame, cv::Size(640, 480));
 
         std::vector<cv::Point2f> pts1, pts2;
@@ -58,13 +69,8 @@ int main() {
         else if (lx.size() >= 3 && rx.size() <= 1) {
             states = handleLeftLaneOnly(lx, overlay);
         }
-        else if (lx.size() >= 2 && rx.size() >=2) {
-            states = handleBothLanes(lx, rx, overlay);
-        }
         else {
-            states.offset = 0;
-            states.angle_y = 0;
-            states.curvature = 0;
+            states = handleBothLanes(lx, rx, overlay);
         }
 
         int delta = stanleyControl(states.offset, states.angle_y, 0.4, 0.79);

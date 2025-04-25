@@ -6,50 +6,33 @@
 #include <cmath>
 
 
-// Hàm đọc ma trận từ file txt (có thể chứa số cách nhau bởi dấu phẩy hoặc khoảng trắng)
-cv::Mat loadMatrix(const std::string& path, int rows, int cols, char delimiter = ' ') {
-    std::ifstream file(path);
-    std::vector<double> values;
-    std::string line;
-    
-    while (std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string token;
-        while (std::getline(ss, token, delimiter)) {
-            values.push_back(std::stod(token));
-        }
-    }
-
-    cv::Mat mat = cv::Mat(values).reshape(1, rows);
-    mat.convertTo(mat, CV_64F); // đảm bảo đúng kiểu
-    return mat;
-}
 /******************************** Fuctions for image processing **********************************************************************/
 //?
-cv::Mat undistortImage(const cv::Mat& image, const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs) {
-    cv::Mat newCameraMatrix;
-    cv::Rect roi;
+UndistortData setupUndistort(const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs, cv::Size imageSize) {
+    UndistortData data;
+    cv::Mat newCameraMatrix = cv::getOptimalNewCameraMatrix(
+        cameraMatrix, distCoeffs, imageSize, 0.4, imageSize, &data.roi
+    );
 
-    // Tính newCameraMatrix và lấy roi
-    newCameraMatrix = cv::getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, image.size(), 1, image.size(), &roi);
+    cv::initUndistortRectifyMap(
+        cameraMatrix, distCoeffs, cv::Mat(), newCameraMatrix,
+        imageSize, CV_16SC2, data.map1, data.map2
+    );
 
-    // Tạo bản đồ undistort
-    cv::Mat map1, map2, undistorted;
-    cv::initUndistortRectifyMap(cameraMatrix, distCoeffs, cv::Mat(), newCameraMatrix, image.size(), CV_16SC2, map1, map2);
+    return data;
+}
 
-    // Áp dụng remap
-    cv::remap(image, undistorted, map1, map2, cv::INTER_LINEAR);
-
-    // Cắt ảnh theo ROI
-    undistorted = undistorted(roi);
-
+cv::Mat undistortFrame(const cv::Mat& frame, const UndistortData& data) {
+    cv::Mat undistorted;
+    cv::remap(frame, undistorted, data.map1, data.map2, cv::INTER_LINEAR);
+    undistorted = undistorted(data.roi);  // Cắt theo ROI nếu cần
     return undistorted;
 }
 //có thể xem lại
 cv::Mat HSVColorSelection(const cv::Mat& image) {
     cv::Mat hsv, white_mask, yellow_mask, combined, gray;
     cv::cvtColor(image, hsv, cv::COLOR_BGR2HSV);
-    cv::inRange(hsv, cv::Scalar(0, 0, 200), cv::Scalar(180, 50, 255), white_mask);
+    cv::inRange(hsv, cv::Scalar(0, 0, 150), cv::Scalar(180, 50, 255), white_mask);
     cv::inRange(hsv, cv::Scalar(10, 100, 100), cv::Scalar(25, 255, 255), yellow_mask);
     cv::bitwise_or(white_mask, yellow_mask, combined);
     cv::bitwise_and(image, image, gray, combined);
@@ -66,8 +49,8 @@ cv::Mat perspectiveTransform(const cv::Mat& frame, std::vector<cv::Point2f>& pts
     pts1 = { 
         {0.0f, float(height)}, 
         {float(width), float(height)}, 
-        {float(width * 0.69), float(height * 0.45)}, 
-        {float(width * 0.31), float(height * 0.45)} 
+        {float(width * 0.70), float(height * 0.65)}, 
+        {float(width * 0.35), float(height * 0.65)} 
     };
 
     pts2 = { 
@@ -289,7 +272,7 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
     float intercept = 0;
     float angle_x = 0;
 
-    if (midpoints.size() == 2) {
+    if (midpoints.size() >= 2) {
         cv::Point2f mid1 = midpoints[0];
         cv::Point2f mid2 = midpoints[1];
 
@@ -306,11 +289,12 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
         }
         result.curvature = 0;
     }
+
     else if (midpoints.size() >= 3) {
         std::vector<cv::Point2f> midToFit;
+        midToFit.push_back(midpoints[0]);
         midToFit.push_back(midpoints[1]);
         midToFit.push_back(midpoints[2]);
-        midToFit.push_back(midpoints[3]);
 
         cv::Vec4f lineParams;
         cv::fitLine(midToFit, lineParams, cv::DIST_L2, 0, 0.01, 0.01);
