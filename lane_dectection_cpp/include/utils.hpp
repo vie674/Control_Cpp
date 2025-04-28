@@ -25,11 +25,14 @@ struct UndistortData {
 UndistortData setupUndistort(const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs, cv::Size imageSize) ;
 cv::Mat undistortFrame(const cv::Mat& frame, const UndistortData& data);
 
+
 // Chuyển đổi màu để phát hiện lane (white + yellow)
 cv::Mat HSVColorSelection(const cv::Mat& image);
 
 // Biến đổi phối cảnh ảnh
 cv::Mat perspectiveTransform(const cv::Mat& frame, std::vector<cv::Point2f>& pts1, std::vector<cv::Point2f>& pts2);
+
+void splitImageByAngle(const cv::Mat& inputImage, cv::Mat& outputLeft, cv::Mat& outputRight, double alpha_deg);
 
 // Histogram (khởi tạo)
 cv::Mat getHistogram(const cv::Mat& mask);
@@ -71,5 +74,5 @@ bool initializeSerial(LibSerial::SerialPort& serial, const std::string& port_nam
 cv::Mat visualize(const cv::Mat& original, const cv::Mat& warped, const cv::Mat& overlay,
                   const std::vector<cv::Point2f>& pts1, const std::vector<cv::Point2f>& pts2,
                   double denta, vehicleState states);
-
+void showFPS(double& lastTick, double& fps); 
 #endif // UTILS_HPP

@@ -76,6 +76,63 @@ cv::Mat perspectiveTransform(const cv::Mat& frame, std::vector<cv::Point2f>& pts
     return warped;
 }
 
+void splitImageByAngle(const cv::Mat& inputImage, cv::Mat& outputLeft, cv::Mat& outputRight, double alpha_deg) {
+    int width = inputImage.cols;
+    int height = inputImage.rows;
+
+    // Origin point (320, 480) - center of the image (can be adjusted based on the application)
+    cv::Point origin(320, 480);  // Thay đổi nếu cần thiết
+
+    // Convert alpha angle from degrees to radians
+    double alpha = alpha_deg * CV_PI / 180.0;
+
+    // Create a line based on the angle alpha from the origin
+    double slope = std::tan(alpha);
+
+    // Create masks to separate left and right parts of the image
+    cv::Mat maskLeft = cv::Mat::zeros(height, width, CV_8UC1);
+    cv::Mat maskRight = cv::Mat::zeros(height, width, CV_8UC1);
+
+    // Nếu góc là 90 độ (hoặc gần 90 độ), thì tạo một đường thẳng đứng chia đôi ảnh
+    if (std::abs(alpha_deg - 90) < 3) { // Kiểm tra xem góc có gần 90 độ hay không
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                if (x < width / 2) {
+                    maskLeft.at<uchar>(y, x) = 255;  // Phần bên trái
+                } else {
+                    maskRight.at<uchar>(y, x) = 255;  // Phần bên phải
+                }
+            }
+        }
+    } else {
+        // Xử lý các góc khác, sử dụng toán học như bình thường
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                // Tính toạ độ y trên đường phân chia tại x
+                int lineY = origin.y + static_cast<int>(slope * (x - origin.x));
+                if (alpha_deg > 90) {
+                    if (y < lineY) {
+                        maskLeft.at<uchar>(y, x) = 255; // Phần bên trái
+                    } else {
+                        maskRight.at<uchar>(y, x) = 255; // Phần bên phải
+                    }
+                }
+                else {
+                    if (y > lineY) {
+                        maskLeft.at<uchar>(y, x) = 255; // Phần bên trái
+                    } else {
+                        maskRight.at<uchar>(y, x) = 255; // Phần bên phải
+                    }
+                }
+            }
+        }
+    }
+
+    // Áp dụng mặt nạ vào ảnh để chia thành 2 phần
+    inputImage.copyTo(outputLeft, maskLeft);
+    inputImage.copyTo(outputRight, maskRight);
+}
+
 cv::Mat getHistogram(const cv::Mat& mask) {
     cv::Mat histogram = cv::Mat::zeros(1, mask.cols, CV_32F);
     for (int col = 0; col < mask.cols; ++col) {
@@ -102,7 +159,7 @@ std::vector<int> detectLanePoints(const cv::Mat& mask, int base) {
         int roi_x = base - 30;
         int roi_y = y - 35;
         int roi_width = 60;
-        int roi_height = 35;
+        int roi_height = 25;
 
         roi_x = std::max(roi_x, 0);  
         roi_y = std::max(roi_y, 0);  
@@ -122,8 +179,8 @@ std::vector<int> detectLanePoints(const cv::Mat& mask, int base) {
                 base = base - 30 + cx;
             }
         }
-        cv::rectangle (mask, {base - 30, y}, {base + 30, y -35}, cv::Scalar(255, 0, 0), 2);
-        y -= 35;
+        cv::rectangle (mask, {base - 30, y}, {base + 30, y - 25}, cv::Scalar(255, 0, 0), 2);
+        y -= 25;
     }
     return points;
 }
@@ -159,13 +216,8 @@ cv::Vec3f fitPolynomial(const std::vector<cv::Point>& pts) {
 
     cv::Mat coeffs;
     int check;
-    if (cv::solve(X, Y, coeffs, cv::DECOMP_SVD) == 0){
-        return cv::Vec3f(coeffs.at<float>(0), coeffs.at<float>(1), coeffs.at<float>(2));
-    }
-    else {
-        return cv::Vec3f(0, 0, 0);
-    }
-        
+    cv::solve(X, Y, coeffs, cv::DECOMP_SVD) == 0;
+    return cv::Vec3f(coeffs.at<float>(0), coeffs.at<float>(1), coeffs.at<float>(2));
 }
 
 // Xử lý khi chỉ có làn phải
@@ -272,7 +324,7 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
     float intercept = 0;
     float angle_x = 0;
 
-    if (midpoints.size() >= 2) {
+    if (midpoints.size() == 2) {
         cv::Point2f mid1 = midpoints[0];
         cv::Point2f mid2 = midpoints[1];
 
@@ -335,7 +387,6 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
     << "Curvature: " << result.curvature << "m\n"
     << "Offset: " << result.offset << " m\n";
     return result;
-    
 }
 
 cv::Mat visualize(const cv::Mat& original, const cv::Mat& warped, const cv::Mat& overlay,
@@ -381,6 +432,17 @@ int stanleyControl(double e, double psi, double v, double k) {
     }
     return delta;
 }
+
+void showFPS(double& lastTick, double& fps) {
+    double currentTick = cv::getTickCount();
+    double dt = (currentTick - lastTick) / cv::getTickFrequency();  // thời gian xử lý 1 frame
+    lastTick = currentTick;
+
+    if (dt > 0.0)
+        fps = 1.0 / dt;
+    std::cout << "FPS: " << fps;
+}
+
 
 /****************************** Serial communication functions **********************************************/
 
