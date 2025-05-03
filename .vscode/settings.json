@@ -61,7 +61,8 @@
         "streambuf": "cpp",
         "thread": "cpp",
         "typeinfo": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "core": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

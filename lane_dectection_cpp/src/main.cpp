@@ -1,12 +1,15 @@
+
 #include <opencv2/opencv.hpp>
 #include <iostream>
 #include <cmath>
 #include "utils.hpp"
+#include "debug.hpp"
+#include "mpc.hpp"
 
 
 int main() {
     // 1. Open video file
-    cv::VideoCapture vidcap("thap.mp4");
+    cv::VideoCapture vidcap(0, cv::CAP_V4L2);
     if (!vidcap.isOpened()) {
         std::cerr << "Failed to open video" << std::endl;
         return -1;
@@ -14,29 +17,20 @@ int main() {
     
     double fps = 0;
     double lastTick = cv::getTickCount();
-
-    // Camera intrinsic parameters (calibration data)
-    cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) <<
-        262.08953333143063, 0.0, 330.77574325128484,
-        0.0, 263.57901348164575, 250.50298224489268,
-        0.0, 0.0, 1.0);
-
-    // Camera distortion coefficients
-    cv::Mat distCoeffs = (cv::Mat_<double>(1, 5) <<
-        -0.27166331922859776, 0.09924985737514846,
-        -0.0002707688044880526, 0.0006724194580262318,
-        -0.01935517123682299);
-
     UndistortData undistortData = setupUndistort(cameraMatrix, distCoeffs, cv::Size(640, 480));
 
     cv::Mat frame, warped, mask, overlay, leftImage, rightImage;
     std::vector<int> prevLx, prevRx;
-    int del = 90;
+    int splitAngle = 90;
+
+    mpcInit(40.0, 5.0, 5.0);
+    Eigen::VectorXd x0(4);
     
     while (true) {
         vidcap >> frame;
         if (frame.empty()) break;
-        
+        x0 << 0, 0.0, 0.0, 0.0;
+        Eigen::VectorXd v_k = Eigen::VectorXd::Zero(15 * 1);
         // Undistort frame
         frame = undistortFrame(frame, undistortData);
         cv::resize(frame, frame, cv::Size(640, 480));
@@ -49,7 +43,7 @@ int main() {
         leftImage = cv::Mat::zeros(640, 480, CV_8UC1);
         rightImage = cv::Mat::zeros(640, 480, CV_8UC1);
         // Split image by angle
-        splitImageByAngle(mask, leftImage, rightImage, del);  // Use alpha = 90 degrees
+        splitImageByAngle(mask, leftImage, rightImage, splitAngle);  // Use alpha = 90 degrees
 
         // Resize images if necessary
         cv::resize(leftImage, leftImage, cv::Size(640, 480));
@@ -91,14 +85,21 @@ int main() {
         // Calculate steering angle using Stanley controller
         int delta = stanleyControl(states.offset, states.angle_y, 0.4, 0.79);
         int steeringAngle = 80 + delta;
-        del = steeringAngle + 10;
+        splitAngle = steeringAngle + 10;
+        auto start = std::chrono::high_resolution_clock::now();
+        float steering_angle_deg = mpcControl(x0, v_k);
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    
+        std::cout << "Computed steering angle (deg): " << steering_angle_deg << std::endl;
+        std::cout << "Solve time: " << duration.count() << " us" << std::endl;
         // Visualize results
-        auto result = visualize(frame, warped, overlay, pts1, pts2, delta, states);
+        //auto result = visualize(frame, warped, overlay, pts1, pts2, delta, states);
         showFPS(lastTick, fps);
-        cv::imshow("Left", leftImage);
-        cv::imshow("Right", rightImage);
-        cv::imshow("Lane Detection", result);
-        cv::imshow("Mask", mask);
+        //cv::imshow("Left", leftImage);
+        //cv::imshow("Right", rightImage);
+        //cv::imshow("Lane Detection", result);
+        //cv::imshow("Mask", mask);
 
         if (cv::waitKey(10) == 27) break;  // Exit if 'Esc' is pressed
     }

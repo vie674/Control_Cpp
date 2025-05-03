@@ -1,0 +1,3 @@
+/home/pi/Desktop/Control_Cpp/lane_dectection_cpp/build/CMakeFiles/mpc_controller.dir
+/home/pi/Desktop/Control_Cpp/lane_dectection_cpp/build/CMakeFiles/edit_cache.dir
+/home/pi/Desktop/Control_Cpp/lane_dectection_cpp/build/CMakeFiles/rebuild_cache.dir

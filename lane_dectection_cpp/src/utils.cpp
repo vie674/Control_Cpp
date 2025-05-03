@@ -1,10 +1,23 @@
 // File: utils.cpp
 #include "utils.hpp"
+#include "debug.hpp"
 #include <fstream>
 #include <iostream>
 #include <numeric>
 #include <cmath>
 
+
+// Camera intrinsic parameters (calibration data)
+cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) <<
+    262.08953333143063, 0.0, 330.77574325128484,
+    0.0, 263.57901348164575, 250.50298224489268,
+    0.0, 0.0, 1.0);
+
+// Camera distortion coefficients
+cv::Mat distCoeffs = (cv::Mat_<double>(1, 5) <<
+    -0.27166331922859776, 0.09924985737514846,
+    -0.0002707688044880526, 0.0006724194580262318,
+    -0.01935517123682299);
 
 /******************************** Fuctions for image processing **********************************************************************/
 //?
@@ -236,14 +249,17 @@ vehicleState handleRightLaneOnly(const std::vector<int>& rx, cv::Mat& overlay) {
     result.angle_y = calculateAngle(slope);
     result.offset = -((530.0f / 2.0f) - std::abs(rx[0] - 320)) * PIXEL_TO_METER;
 
-    // Vẽ trên hình ảnh
-    drawPolynomial(overlay, right_fit, cv::Scalar(0, 255, 255));
-
-    std::cout << "...........................[Right lane only]..........................:\n"
-              << "Slope: " << slope << "\n"
-              << "Angle wrt Y: " << result.angle_y << " deg\n"
-              << "Curvature: " << result.curvature << " m\n"
-              << "Offset: " << result.offset << " m\n";
+    #ifdef DEBUG_IMAGE
+        // Vẽ trên hình ảnh
+        drawPolynomial(overlay, right_fit, cv::Scalar(0, 255, 255));
+    #endif
+    #ifdef DEBUG_TERMINAL
+        std::cout << "...........................[Right lane only]..........................:\n"
+        << "Slope: " << slope << "\n"
+        << "Angle wrt Y: " << result.angle_y << " deg\n"
+        << "Curvature: " << result.curvature << " m\n"
+        << "Offset: " << result.offset << " m\n";
+    #endif
 
     return result;
 }
@@ -266,15 +282,18 @@ vehicleState handleLeftLaneOnly(const std::vector<int>& lx, cv::Mat& overlay) {
     result.angle_y = calculateAngle(slope);
     result.offset = ((530.0f / 2.0f) - std::abs(lx[0] - 320)) * PIXEL_TO_METER;
 
-    // Vẽ trên hình ảnh
-    drawPolynomial(overlay, left_fit, cv::Scalar(0, 255, 0));
-
-    std::cout << "...........................[Left lane only]........................\n"
-              << "Slope: " << slope << "\n"
-              << "Angle wrt Y: " << result.angle_y << " deg\n"
-              << "Curvature: " << result.curvature << " m\n"
-              << "Offset: " << result.offset << " m\n";
-
+    
+    #ifdef DEBUG_IMAGE
+        // Vẽ trên hình ảnh
+        drawPolynomial(overlay, left_fit, cv::Scalar(0, 255, 0));
+    #endif
+    #ifdef DEBUG_TERMINAL
+        std::cout << "...........................[Left lane only]........................\n"
+                << "Slope: " << slope << "\n"
+                << "Angle wrt Y: " << result.angle_y << " deg\n"
+                << "Curvature: " << result.curvature << " m\n"
+                << "Offset: " << result.offset << " m\n";
+    #endif
     return result;
 }
 
@@ -297,18 +316,22 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
         leftPoints.push_back(left);
         rightPoints.push_back(right);
 
-        // Vẽ đường nối giữa left và right
-        cv::line(overlay, left, right, cv::Scalar(0, 255, 0), 1);
 
         // Tính midpoint
         cv::Point2f midpoint((left.x + right.x) / 2.0f, (left.y + right.y) / 2.0f);
         midpoints.push_back(midpoint);
 
-        // Vẽ midpoint
-        cv::circle(overlay, midpoint, 5, cv::Scalar(0, 0, 255), -1);
+        #ifdef DEBUG_IMAGE
+            // Vẽ đường nối giữa left và right
+            cv::line(overlay, left, right, cv::Scalar(0, 255, 0), 1);
 
-        // Vẽ đường nối các midpoint
-        cv::line(overlay, previous_mid, midpoint, cv::Scalar(200, 100, 250), 1);
+            // Vẽ midpoint
+            cv::circle(overlay, midpoint, 5, cv::Scalar(0, 0, 255), -1);
+
+            // Vẽ đường nối các midpoint
+            cv::line(overlay, previous_mid, midpoint, cv::Scalar(200, 100, 250), 1);
+        #endif // DEBUG
+
         previous_mid = midpoint;
     }
 
@@ -379,34 +402,35 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
         result.curvature = (leftCurv + rightCurv) / 2;
     }
 
-
-    // In kết quả để debug
-    std::cout << "...........................[Both lanes].......................\n"
-    << "Slope: " << slope << "\n"
-    << "Angle wrt Y: " << result.angle_y << " deg\n"
-    << "Curvature: " << result.curvature << "m\n"
-    << "Offset: " << result.offset << " m\n";
+    #ifdef DEBUG_TERMINAL
+        // In kết quả để debug
+        std::cout << "...........................[Both lanes].......................\n"
+        << "Slope: " << slope << "\n"
+        << "Angle wrt Y: " << result.angle_y << " deg\n"
+        << "Curvature: " << result.curvature << "m\n"
+        << "Offset: " << result.offset << " m\n";
+    #endif
     return result;
 }
 
 cv::Mat visualize(const cv::Mat& original, const cv::Mat& warped, const cv::Mat& overlay,
     const std::vector<cv::Point2f>& pts1, const std::vector<cv::Point2f>& pts2,
     double denta, vehicleState states) {
-cv::Mat invMatrix = cv::getPerspectiveTransform(pts2, pts1);
-cv::Mat lane_overlay;
-cv::warpPerspective(overlay, lane_overlay, invMatrix, original.size());
-cv::Mat result;
-cv::addWeighted(original, 1.0, lane_overlay, 0.5, 0.0, result);
+    cv::Mat invMatrix = cv::getPerspectiveTransform(pts2, pts1);
+    cv::Mat lane_overlay;
+    cv::warpPerspective(overlay, lane_overlay, invMatrix, original.size());
+    cv::Mat result;
+    cv::addWeighted(original, 1.0, lane_overlay, 0.5, 0.0, result);
 
-int end_x = static_cast<int>(320 + 100 * std::sin(denta * CV_PI / 180));
-int end_y = static_cast<int>(480 - 100 * std::cos(denta * CV_PI / 180));
-cv::line(result, {320, 480}, {end_x, end_y}, cv::Scalar(255, 0, 0), 2);
-cv::line(result, {320, 480}, {320, 440}, cv::Scalar(0, 0, 0), 2);
+    int end_x = static_cast<int>(320 + 100 * std::sin(denta * CV_PI / 180));
+    int end_y = static_cast<int>(480 - 100 * std::cos(denta * CV_PI / 180));
+    cv::line(result, {320, 480}, {end_x, end_y}, cv::Scalar(255, 0, 0), 2);
+    cv::line(result, {320, 480}, {320, 440}, cv::Scalar(0, 0, 0), 2);
 
-cv::putText(result, "Offset: " + std::to_string(states.offset), {30, 70}, cv::FONT_HERSHEY_SIMPLEX, 1, {255, 255, 255}, 2);
-cv::putText(result, "Angle Y: " + std::to_string(states.angle_y), {30, 110}, cv::FONT_HERSHEY_SIMPLEX, 1, {255, 255, 255}, 2);
-cv::putText(result, "Steering: " + std::to_string(80 + denta), {30, 150}, cv::FONT_HERSHEY_SIMPLEX, 1, {255, 255, 255}, 2);
-return result;
+    cv::putText(result, "Offset: " + std::to_string(states.offset), {30, 70}, cv::FONT_HERSHEY_SIMPLEX, 1, {255, 255, 255}, 2);
+    cv::putText(result, "Angle Y: " + std::to_string(states.angle_y), {30, 110}, cv::FONT_HERSHEY_SIMPLEX, 1, {255, 255, 255}, 2);
+    cv::putText(result, "Steering: " + std::to_string(80 + denta), {30, 150}, cv::FONT_HERSHEY_SIMPLEX, 1, {255, 255, 255}, 2);
+    return result;
 }
 
 /******************************Compute and control functions**********************************************/

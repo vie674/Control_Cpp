@@ -9,6 +9,9 @@
 
 #define PIXEL_TO_METER 0.000914f
 
+extern cv::Mat cameraMatrix;
+extern cv::Mat distCoeffs;
+
 // Cấu trúc lưu trạng thái xe
 struct vehicleState {
     float curvature = 0.0f;
