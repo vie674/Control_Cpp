@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = -DOSQP_EIGEN_OSQP_IS_V1 -DOSQP_EIGEN_OSQP_IS_V1_FINAL -DOSQP_SHARED_LIB
 
-CXX_INCLUDES = -I/home/pi/Desktop/Control_Cpp/lane_dectection_cpp/include -I/usr/include/libserial -isystem /usr/include/eigen3 -isystem /usr/local/include/osqp -isystem /usr/include/opencv4
+CXX_INCLUDES = -I/home/pi/Desktop/Control_Cpp/lane_dectection_cpp/include -I/usr/include/libserial -isystem /usr/include/eigen3 -isystem /usr/include/opencv4 -isystem /usr/local/include/osqp
 
 CXX_FLAGS = -std=gnu++17
 

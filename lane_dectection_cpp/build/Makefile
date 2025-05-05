@@ -129,6 +129,78 @@ mpc_controller/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/build
 .PHONY : mpc_controller/fast
 
+src/controller.o: src/controller.cpp.o
+.PHONY : src/controller.o
+
+# target to build an object file
+src/controller.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/controller.cpp.o
+.PHONY : src/controller.cpp.o
+
+src/controller.i: src/controller.cpp.i
+.PHONY : src/controller.i
+
+# target to preprocess a source file
+src/controller.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/controller.cpp.i
+.PHONY : src/controller.cpp.i
+
+src/controller.s: src/controller.cpp.s
+.PHONY : src/controller.s
+
+# target to generate assembly for a file
+src/controller.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/controller.cpp.s
+.PHONY : src/controller.cpp.s
+
+src/image.o: src/image.cpp.o
+.PHONY : src/image.o
+
+# target to build an object file
+src/image.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/image.cpp.o
+.PHONY : src/image.cpp.o
+
+src/image.i: src/image.cpp.i
+.PHONY : src/image.i
+
+# target to preprocess a source file
+src/image.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/image.cpp.i
+.PHONY : src/image.cpp.i
+
+src/image.s: src/image.cpp.s
+.PHONY : src/image.s
+
+# target to generate assembly for a file
+src/image.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/image.cpp.s
+.PHONY : src/image.cpp.s
+
+src/imu.o: src/imu.cpp.o
+.PHONY : src/imu.o
+
+# target to build an object file
+src/imu.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/imu.cpp.o
+.PHONY : src/imu.cpp.o
+
+src/imu.i: src/imu.cpp.i
+.PHONY : src/imu.i
+
+# target to preprocess a source file
+src/imu.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/imu.cpp.i
+.PHONY : src/imu.cpp.i
+
+src/imu.s: src/imu.cpp.s
+.PHONY : src/imu.s
+
+# target to generate assembly for a file
+src/imu.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/imu.cpp.s
+.PHONY : src/imu.cpp.s
+
 src/main.o: src/main.cpp.o
 .PHONY : src/main.o
 
@@ -153,53 +225,53 @@ src/main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/main.cpp.s
 .PHONY : src/main.cpp.s
 
-src/mpc.o: src/mpc.cpp.o
-.PHONY : src/mpc.o
+src/serial.o: src/serial.cpp.o
+.PHONY : src/serial.o
 
 # target to build an object file
-src/mpc.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/mpc.cpp.o
-.PHONY : src/mpc.cpp.o
+src/serial.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/serial.cpp.o
+.PHONY : src/serial.cpp.o
 
-src/mpc.i: src/mpc.cpp.i
-.PHONY : src/mpc.i
+src/serial.i: src/serial.cpp.i
+.PHONY : src/serial.i
 
 # target to preprocess a source file
-src/mpc.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/mpc.cpp.i
-.PHONY : src/mpc.cpp.i
+src/serial.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/serial.cpp.i
+.PHONY : src/serial.cpp.i
 
-src/mpc.s: src/mpc.cpp.s
-.PHONY : src/mpc.s
+src/serial.s: src/serial.cpp.s
+.PHONY : src/serial.s
 
 # target to generate assembly for a file
-src/mpc.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/mpc.cpp.s
-.PHONY : src/mpc.cpp.s
+src/serial.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/serial.cpp.s
+.PHONY : src/serial.cpp.s
 
-src/utils.o: src/utils.cpp.o
-.PHONY : src/utils.o
+src/socket.o: src/socket.cpp.o
+.PHONY : src/socket.o
 
 # target to build an object file
-src/utils.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/utils.cpp.o
-.PHONY : src/utils.cpp.o
+src/socket.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/socket.cpp.o
+.PHONY : src/socket.cpp.o
 
-src/utils.i: src/utils.cpp.i
-.PHONY : src/utils.i
+src/socket.i: src/socket.cpp.i
+.PHONY : src/socket.i
 
 # target to preprocess a source file
-src/utils.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/utils.cpp.i
-.PHONY : src/utils.cpp.i
+src/socket.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/socket.cpp.i
+.PHONY : src/socket.cpp.i
 
-src/utils.s: src/utils.cpp.s
-.PHONY : src/utils.s
+src/socket.s: src/socket.cpp.s
+.PHONY : src/socket.s
 
 # target to generate assembly for a file
-src/utils.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/utils.cpp.s
-.PHONY : src/utils.cpp.s
+src/socket.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/mpc_controller.dir/build.make CMakeFiles/mpc_controller.dir/src/socket.cpp.s
+.PHONY : src/socket.cpp.s
 
 # Help Target
 help:
@@ -210,15 +282,24 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... mpc_controller"
+	@echo "... src/controller.o"
+	@echo "... src/controller.i"
+	@echo "... src/controller.s"
+	@echo "... src/image.o"
+	@echo "... src/image.i"
+	@echo "... src/image.s"
+	@echo "... src/imu.o"
+	@echo "... src/imu.i"
+	@echo "... src/imu.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
-	@echo "... src/mpc.o"
-	@echo "... src/mpc.i"
-	@echo "... src/mpc.s"
-	@echo "... src/utils.o"
-	@echo "... src/utils.i"
-	@echo "... src/utils.s"
+	@echo "... src/serial.o"
+	@echo "... src/serial.i"
+	@echo "... src/serial.s"
+	@echo "... src/socket.o"
+	@echo "... src/socket.i"
+	@echo "... src/socket.s"
 .PHONY : help
 
 
