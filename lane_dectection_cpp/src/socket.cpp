@@ -1,45 +1,95 @@
-#include <opencv2/opencv.hpp>
-#include <arpa/inet.h>
-#include <unistd.h>
+// socket.cpp
+#include "socket.hpp"
+#include "share.hpp"
+#include "debug.hpp"
 #include <iostream>
-#include <vector>
+#include <netinet/in.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <opencv2/opencv.hpp>
+#include <thread>
+#include <chrono>
 
-#define SERVER_IP "192.168.1.109"  // 🛑 Đặt IP của máy Windows
-#define SERVER_PORT 8888
-#define MAX_PACKET_SIZE 65000
-
-int main() {
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
-
+void signal_receiver(int port) {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
     sockaddr_in servAddr{};
     servAddr.sin_family = AF_INET;
-    servAddr.sin_port = htons(SERVER_PORT);
-    inet_pton(AF_INET, SERVER_IP, &servAddr.sin_addr);
+    servAddr.sin_port = htons(port);
+    servAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    cv::VideoCapture cap(2);
-    if (!cap.isOpened()) {
-        std::cerr << "Không mở được video.\n";
-        return -1;
-    }
+    bind(sock, (sockaddr*)&servAddr, sizeof(servAddr));
+    listen(sock, 1);
 
-    while (true) {
-        cv::Mat frame;
-        cap >> frame;
-        
-        std::vector<uchar> buf;
-        cv::imencode(".jpg", frame, buf, {cv::IMWRITE_JPEG_QUALITY, 50});
+    std::cout << "[SIGNAL RECEIVER] Waiting for TCP connection on port 8888..." << std::endl;
+    sock = accept(sock, nullptr, nullptr);
+    std::cout << "[SIGNAL RECEIVER] Client connected." << std::endl;
 
-        if (buf.size() > MAX_PACKET_SIZE) {
-            std::cerr << "Frame quá lớn! Hãy giảm độ phân giải hoặc tăng nén.\n";
-            continue;
+    char buffer[1024];
+    while (!stop_flag) {
+        ssize_t len = recv(sock, buffer, sizeof(buffer) - 1, 0);
+        if (len > 0) {
+            buffer[len] = '\0';
+            int val = std::stoi(buffer);
+            if (val >= 1 && val <= 10) {
+                control_signal.store(val);
+            }
         }
-
-        sendto(sock, buf.data(), buf.size(), 0,
-               (sockaddr*)&servAddr, sizeof(servAddr));
-        cv::imshow ("anh", frame);
-        if (cv::waitKey(1) == 27) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     close(sock);
-    return 0;
+}
+
+
+void server_uploader(std::string serverIpAddr, int port) {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    sockaddr_in server{};
+    server.sin_family = AF_INET;
+    server.sin_port = htons(port);
+    inet_pton(AF_INET, serverIpAddr.c_str(), &server.sin_addr);
+
+    if (connect(sock, (sockaddr*)&server, sizeof(server)) < 0) {
+        std::cerr << "[ERROR] Cannot connect to TCP server" << std::endl;
+        return;
+    }
+
+    while (!stop_flag) {
+        cv::Mat local_frame;
+        float local_encoder;
+        std::vector<float> local_imu(6);
+
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            if (shared_frame.empty()) continue;
+            shared_frame.copyTo(local_frame);
+            local_encoder = encoder_data;
+            std::copy(imu_data.begin(), imu_data.end(), local_imu.begin());
+        }
+
+        std::vector<uchar> buf;
+        cv::imencode(".jpg", local_frame, buf);
+
+        int size = buf.size();
+        send(sock, &size, sizeof(size), 0);
+        send(sock, buf.data(), size, 0);
+
+        std::string sensor_data = "ENC:" + std::to_string(local_encoder) +
+                                  ",YAW:" + std::to_string(local_imu[0]) +
+                                  ",PIT:" + std::to_string(local_imu[1]) +
+                                  ",ROL:" + std::to_string(local_imu[2]) +
+                                  ",AX:" + std::to_string(local_imu[3]) +
+                                  ",AY:" + std::to_string(local_imu[4]) +
+                                  ",ASIG:" + std::to_string(local_imu[5]);
+
+        int text_len = sensor_data.size();
+        send(sock, &text_len, sizeof(text_len), 0);
+        send(sock, sensor_data.c_str(), text_len, 0);
+        
+        #ifdef DEBUG_TERMINAL_SOCKET
+            std::cout << "[UPLOAD] " << sensor_data << std::endl;
+        #endif
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    }
+
+    close(sock);
 }

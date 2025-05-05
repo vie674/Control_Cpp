@@ -1,5 +1,8 @@
-#include "mpc.hpp"
+#include "controller.hpp"
+#include "debug.hpp"
+#include "share.hpp"
 #include <iostream>
+#include <Eigen/Dense>
 #include <unsupported/Eigen/MatrixFunctions>
 #include <OsqpEigen/OsqpEigen.h>
 #include <chrono>
@@ -10,8 +13,8 @@ const int N = 15;
 
 Eigen::MatrixXd A_d(4, 4), B1_d(4, 1), B2_d(4, 1);
 Eigen::MatrixXd AX, BU, BV, H;
-double umin = -30 * M_PI / 180;
-double umax = 30 * M_PI / 180;
+double umin = -28 * M_PI / 180;
+double umax = 28 * M_PI / 180;
 
 Eigen::MatrixXd matrixPower(const Eigen::MatrixXd& A, int p) {
     if (p == 0) return Eigen::MatrixXd::Identity(A.rows(), A.cols());
@@ -141,4 +144,15 @@ float mpcControl(Eigen::VectorXd& x0, Eigen::VectorXd& v_k) {
     double u_cmd = z_opt((N + 1) * nx);
     u_cmd = std::clamp(u_cmd, umin, umax);
     return static_cast<float>(-u_cmd * 180.0 / M_PI);
+}
+
+int stanleyControl(double e, double psi, double v, double k) {
+    int delta = psi + std::atan(k * e / (v + 1e-6)) * 180.0 / (3.14159f);
+    if (delta > 28) {
+        delta = 28.0f;
+    }
+    else if(delta < -28) {
+        delta = -28.0f;
+    }
+    return delta;
 }

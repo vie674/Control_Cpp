@@ -1,11 +1,12 @@
 // File: utils.cpp
-#include "utils.hpp"
+#include "image.hpp"
+#include "share.hpp"
 #include "debug.hpp"
-#include <fstream>
 #include <iostream>
 #include <numeric>
 #include <cmath>
-
+#include <thread>
+#include <chrono>
 
 // Camera intrinsic parameters (calibration data)
 cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) <<
@@ -249,11 +250,11 @@ vehicleState handleRightLaneOnly(const std::vector<int>& rx, cv::Mat& overlay) {
     result.angle_y = calculateAngle(slope);
     result.offset = -((530.0f / 2.0f) - std::abs(rx[0] - 320)) * PIXEL_TO_METER;
 
-    #ifdef DEBUG_IMAGE
+    #ifdef DEBUG_IMAGE_LANE
         // Vẽ trên hình ảnh
         drawPolynomial(overlay, right_fit, cv::Scalar(0, 255, 255));
     #endif
-    #ifdef DEBUG_TERMINAL
+    #ifdef DEBUG_TERMINAL_LANE
         std::cout << "...........................[Right lane only]..........................:\n"
         << "Slope: " << slope << "\n"
         << "Angle wrt Y: " << result.angle_y << " deg\n"
@@ -283,11 +284,11 @@ vehicleState handleLeftLaneOnly(const std::vector<int>& lx, cv::Mat& overlay) {
     result.offset = ((530.0f / 2.0f) - std::abs(lx[0] - 320)) * PIXEL_TO_METER;
 
     
-    #ifdef DEBUG_IMAGE
+    #ifdef DEBUG_IMAGE_LANE
         // Vẽ trên hình ảnh
         drawPolynomial(overlay, left_fit, cv::Scalar(0, 255, 0));
     #endif
-    #ifdef DEBUG_TERMINAL
+    #ifdef DEBUG_TERMINAL_LANE
         std::cout << "...........................[Left lane only]........................\n"
                 << "Slope: " << slope << "\n"
                 << "Angle wrt Y: " << result.angle_y << " deg\n"
@@ -321,7 +322,7 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
         cv::Point2f midpoint((left.x + right.x) / 2.0f, (left.y + right.y) / 2.0f);
         midpoints.push_back(midpoint);
 
-        #ifdef DEBUG_IMAGE
+        #ifdef DEBUG_IMAGE_LANE
             // Vẽ đường nối giữa left và right
             cv::line(overlay, left, right, cv::Scalar(0, 255, 0), 1);
 
@@ -402,7 +403,7 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
         result.curvature = (leftCurv + rightCurv) / 2;
     }
 
-    #ifdef DEBUG_TERMINAL
+    #ifdef DEBUG_TERMINAL_LANE
         // In kết quả để debug
         std::cout << "...........................[Both lanes].......................\n"
         << "Slope: " << slope << "\n"
@@ -414,26 +415,31 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
 }
 
 cv::Mat visualize(const cv::Mat& original, const cv::Mat& warped, const cv::Mat& overlay,
-    const std::vector<cv::Point2f>& pts1, const std::vector<cv::Point2f>& pts2,
-    double denta, vehicleState states) {
-    cv::Mat invMatrix = cv::getPerspectiveTransform(pts2, pts1);
-    cv::Mat lane_overlay;
-    cv::warpPerspective(overlay, lane_overlay, invMatrix, original.size());
-    cv::Mat result;
-    cv::addWeighted(original, 1.0, lane_overlay, 0.5, 0.0, result);
+    #ifdef DEBUG_IMAGE_LANE
+        const std::vector<cv::Point2f>& pts1, const std::vector<cv::Point2f>& pts2,
+        double denta, vehicleState states) {
+        cv::Mat invMatrix = cv::getPerspectiveTransform(pts2, pts1);
+        cv::Mat lane_overlay;
+        cv::warpPerspective(overlay, lane_overlay, invMatrix, original.size());
+        cv::Mat result;
+        cv::addWeighted(original, 1.0, lane_overlay, 0.5, 0.0, result);
 
-    int end_x = static_cast<int>(320 + 100 * std::sin(denta * CV_PI / 180));
-    int end_y = static_cast<int>(480 - 100 * std::cos(denta * CV_PI / 180));
-    cv::line(result, {320, 480}, {end_x, end_y}, cv::Scalar(255, 0, 0), 2);
-    cv::line(result, {320, 480}, {320, 440}, cv::Scalar(0, 0, 0), 2);
+        int end_x = static_cast<int>(320 + 100 * std::sin(denta * CV_PI / 180));
+        int end_y = static_cast<int>(480 - 100 * std::cos(denta * CV_PI / 180));
+        cv::line(result, {320, 480}, {end_x, end_y}, cv::Scalar(255, 0, 0), 2);
+        cv::line(result, {320, 480}, {320, 440}, cv::Scalar(0, 0, 0), 2);
 
-    cv::putText(result, "Offset: " + std::to_string(states.offset), {30, 70}, cv::FONT_HERSHEY_SIMPLEX, 1, {255, 255, 255}, 2);
-    cv::putText(result, "Angle Y: " + std::to_string(states.angle_y), {30, 110}, cv::FONT_HERSHEY_SIMPLEX, 1, {255, 255, 255}, 2);
-    cv::putText(result, "Steering: " + std::to_string(80 + denta), {30, 150}, cv::FONT_HERSHEY_SIMPLEX, 1, {255, 255, 255}, 2);
-    return result;
+        cv::putText(result, "Offset: " + std::to_string(states.offset), {30, 70}, cv::FONT_HERSHEY_SIMPLEX, 1, {255, 255, 255}, 2);
+        cv::putText(result, "Angle Y: " + std::to_string(states.angle_y), {30, 110}, cv::FONT_HERSHEY_SIMPLEX, 1, {255, 255, 255}, 2);
+        cv::putText(result, "Steering: " + std::to_string(80 + denta), {30, 150}, cv::FONT_HERSHEY_SIMPLEX, 1, {255, 255, 255}, 2);
+        return result;
+    #else
+        return original;
+    #endif
+
 }
 
-/******************************Compute and control functions**********************************************/
+/******************************Compute functions**********************************************/
 
 float computeCurvature(const cv::Vec3f& fit, float y_eval, float scale_factor = 0.00062857f) {
     float dy = 2 * fit[0] * y_eval + fit[1];
@@ -446,16 +452,7 @@ float calculateAngle(float slope) {
     return -std::atan(slope) * 180.0f / CV_PI;
 }
 
-int stanleyControl(double e, double psi, double v, double k) {
-    int delta = psi + std::atan(k * e / (v + 1e-6)) * 180.0 / CV_PI;
-    if (delta > 28) {
-        delta = 28.0f;
-    }
-    else if(delta < -28) {
-        delta = -28.0f;
-    }
-    return delta;
-}
+
 
 void showFPS(double& lastTick, double& fps) {
     double currentTick = cv::getTickCount();
@@ -466,27 +463,122 @@ void showFPS(double& lastTick, double& fps) {
         fps = 1.0 / dt;
     std::cout << "FPS: " << fps;
 }
+/// @brief/////////////////////////////////////////////////////////
 
+void preprocessAndSplitFrame(const cv::Mat& input,
+    const UndistortData& undistortData,
+    int splitAngle,
+    cv::Mat& leftImage, cv::Mat& rightImage,
+    std::vector<cv::Point2f>& pts1,
+    std::vector<cv::Point2f>& pts2,
+    cv::Mat& mask, cv::Mat& warped) {
 
-/****************************** Serial communication functions **********************************************/
+    // B1: Undistort và resize ảnh
+    cv::Mat undistorted = undistortFrame(input, undistortData);
+    cv::resize(undistorted, undistorted, cv::Size(640, 480));
+    undistorted.copyTo(input);
+    
+    // B2: Biến đổi phối cảnh
+    warped = perspectiveTransform(undistorted, pts1, pts2);
 
-bool initializeSerial(LibSerial::SerialPort& serial, const std::string& port_name) {
-    try {
-        serial.Open(port_name);
-        serial.SetBaudRate(LibSerial::BaudRate::BAUD_115200);
-        serial.SetCharacterSize(LibSerial::CharacterSize::CHAR_SIZE_8);
-        serial.SetStopBits(LibSerial::StopBits::STOP_BITS_1);
-        serial.SetParity(LibSerial::Parity::PARITY_NONE);
-        serial.SetFlowControl(LibSerial::FlowControl::FLOW_CONTROL_NONE);
-        return true;
-    }
-    catch (const LibSerial::OpenFailed&) {
-        std::cerr << "Không thể mở cổng serial: " << port_name << std::endl;
-        return false;
-    }
+    // B3: Chuyển ảnh sang không gian HSV và lọc màu
+    mask = HSVColorSelection(warped);
+
+    // B4: Khởi tạo ảnh trắng đen cho lane trái/phải
+    leftImage = cv::Mat::zeros(640, 480, CV_8UC1);
+    rightImage = cv::Mat::zeros(640, 480, CV_8UC1);
+
+    // B5: Chia vùng trái/phải theo góc đánh lái
+    splitImageByAngle(mask, leftImage, rightImage, splitAngle);
 }
 
-void sendToSerial(LibSerial::SerialPort& serial_port, int motor_speed, int servo_angle) {
-    std::string msg = "M-" + std::to_string(motor_speed) + " S" + std::to_string(servo_angle) + " ";
-    serial_port.Write(msg);
+void detectLaneLines(const cv::Mat& mask,
+    const cv::Mat& leftImage, const cv::Mat& rightImage,
+    std::vector<int>& prevLx, std::vector<int>& prevRx,
+    std::vector<int>& lx, std::vector<int>& rx) {
+
+    auto hist_left = getHistogram(leftImage);
+    auto hist_right = getHistogram(rightImage);
+
+    int left_base = getBase(hist_left, 0, hist_left.cols);
+    int right_base = getBase(hist_right, 0, hist_right.cols);
+
+    lx = detectLanePoints(mask, left_base);
+    rx = detectLanePoints(mask, right_base);
+
+    if (lx.empty()) lx = prevLx;
+    if (rx.empty()) rx = prevRx;
+
+    prevLx = lx;
+    prevRx = rx;
+}
+
+vehicleState computeControlParam(const std::vector<int>& lx, const std::vector<int>& rx,
+    cv::Mat& overlay, int& splitAngle) {
+
+    vehicleState states;
+
+    if (lx.size() <= 1 && rx.size() >= 3) {
+        states = handleRightLaneOnly(rx, overlay);
+    } else if (lx.size() >= 3 && rx.size() <= 1) {
+        states = handleLeftLaneOnly(lx, overlay);
+    } else if (lx.size() >= 2 && rx.size() >= 2) {
+        states = handleBothLanes(lx, rx, overlay);
+    }
+    else {
+        states.angle_y = 0;
+        states.curvature = 0;
+        states.offset = 0;
+    }
+    return states;
+}
+
+int updateSplitAngle (int steerAngle) {
+    return steerAngle + 10; //midServo = 80 => 90 - 80 = 10
+}
+
+// Thread for reading image
+void image_reader(const bool isReadfromVideo) {
+    cv::VideoCapture cap;
+    cv::Mat frame;
+
+    std::cout << "[IMAGE] Thread entered" << std::endl;
+
+    if (isReadfromVideo) {
+        cap.open("thap.mp4");
+    } else {
+        cap.open(0);
+    }
+
+    if (!cap.isOpened()) {
+        std::cerr << "[ERROR] Cannot open video source" << std::endl;
+        stop_flag = true;
+        return;
+    }
+
+    const int delay_ms = isReadfromVideo ? (1000 / 30) : 0;
+
+    while (!stop_flag) {
+        cap >> frame;
+
+        if (frame.empty()) {
+            if (isReadfromVideo) {
+                cap.set(cv::CAP_PROP_POS_FRAMES, 0); // tua lại nếu là video
+                continue;
+            } else {
+                continue; // webcam lỗi thì bỏ qua
+            }
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            frame.copyTo(shared_frame);
+        }
+
+        if (delay_ms > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+        }
+    }
+
+    std::cout << "[IMAGE] Thread exited." << std::endl;
 }

@@ -1,110 +1,120 @@
-
-#include <opencv2/opencv.hpp>
 #include <iostream>
-#include <cmath>
-#include "utils.hpp"
+#include <thread>
+#include <mutex>
+#include <vector>
+#include <atomic>
+#include <opencv2/opencv.hpp>
+#include <condition_variable>
+#include <pthread.h>  // Dùng pthread để set CPU affinity
+#include "image.hpp"
 #include "debug.hpp"
-#include "mpc.hpp"
+#include "controller.hpp"
+#include "imu.hpp"
+#include "serial.hpp"
+#include "socket.hpp"
 
+// Shared resources
+cv::Mat shared_frame;
+float encoder_data = 0.0f;
+std::vector<float> imu_data(6, 0.0f);
+std::atomic<int> control_signal{0};
 
-int main() {
-    // 1. Open video file
-    cv::VideoCapture vidcap(0, cv::CAP_V4L2);
-    if (!vidcap.isOpened()) {
-        std::cerr << "Failed to open video" << std::endl;
-        return -1;
+std::mutex mtx;
+std::condition_variable cv_encoder, cv_imu;
+bool encoder_ready = false, imu_ready = false;
+std::atomic<bool> stop_flag{false};
+
+void bindingToCore(int core_id) {
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);  // Gán vào core_id
+
+    if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset) != 0) {
+        std::cerr << "[STEERING] Failed to bind thread to CPU core " << core_id << "\n";
+    } 
+    else {
+        cpu_set_t checkset;
+        CPU_ZERO(&checkset);
+        pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &checkset);
+        if (CPU_ISSET(core_id, &checkset)) {
+            std::cout << "[STEERING] Successfully bound to CPU core " << core_id << "\n";
+        } else {
+            std::cerr << "[STEERING] Binding verification failed\n";
+        }
     }
-    
-    double fps = 0;
-    double lastTick = cv::getTickCount();
-    UndistortData undistortData = setupUndistort(cameraMatrix, distCoeffs, cv::Size(640, 480));
+}
 
-    cv::Mat frame, warped, mask, overlay, leftImage, rightImage;
+void steering_processor() {
+    bindingToCore(1);
+
+    UndistortData undistortData = setupUndistort(cameraMatrix, distCoeffs, cv::Size(640, 480));
     std::vector<int> prevLx, prevRx;
+    std::vector<cv::Point2f> pts1, pts2;
+    cv::Mat leftImage, rightImage, mask, warped;
     int splitAngle = 90;
+
+    double fps = 0;     
+    double lastTick = cv::getTickCount();
 
     mpcInit(40.0, 5.0, 5.0);
     Eigen::VectorXd x0(4);
-    
-    while (true) {
-        vidcap >> frame;
-        if (frame.empty()) break;
+
+    while (!stop_flag) {
+        cv::Mat frame;
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            if (shared_frame.empty()) continue;
+            shared_frame.copyTo(frame);
+        }
+
+        int local_signal = control_signal.load();
         x0 << 0, 0.0, 0.0, 0.0;
         Eigen::VectorXd v_k = Eigen::VectorXd::Zero(15 * 1);
-        // Undistort frame
-        frame = undistortFrame(frame, undistortData);
-        cv::resize(frame, frame, cv::Size(640, 480));
-        // Apply perspective transform to the frame
-        std::vector<cv::Point2f> pts1, pts2;
-        warped = perspectiveTransform(frame, pts1, pts2);
 
-        // Apply HSV color selection to get lane mask
-        mask = HSVColorSelection(warped);
-        leftImage = cv::Mat::zeros(640, 480, CV_8UC1);
-        rightImage = cv::Mat::zeros(640, 480, CV_8UC1);
-        // Split image by angle
-        splitImageByAngle(mask, leftImage, rightImage, splitAngle);  // Use alpha = 90 degrees
+        // Preprocess frame and split into left/right
+        preprocessAndSplitFrame(frame, undistortData, splitAngle, leftImage, rightImage, pts1, pts2, mask, warped);
 
-        // Resize images if necessary
-        cv::resize(leftImage, leftImage, cv::Size(640, 480));
-        cv::resize(rightImage, rightImage, cv::Size(640, 480));
+        // Detect lane lines
+        std::vector<int> lx, rx;
+        detectLaneLines(mask, leftImage, rightImage, prevLx, prevRx, lx, rx);
 
-        // Get histograms for left and right regions
-        auto hist_left = getHistogram(leftImage);
-        auto hist_right = getHistogram(rightImage);
+        // Compute control parameters
+        vehicleState states = computeControlParam(lx, rx, warped, splitAngle);
 
-        // Get the base positions for both left and right histograms
-        int left_base = getBase(hist_left, 0, hist_left.cols);
-        int right_base = getBase(hist_right, 0, hist_right.cols);  // Corrected this line
-
-        // Detect lane points based on base positions
-        auto lx = detectLanePoints(mask, left_base);
-        auto rx = detectLanePoints(mask, right_base);
-
-        // If lane points are not found, use previous values
-        if (lx.empty()) lx = prevLx;
-        if (rx.empty()) rx = prevRx;
-
-        prevLx = lx;
-        prevRx = rx;
-
-        overlay = warped.clone();
-        vehicleState states;
-
-        // Handle left and right lanes based on detected points
-        if (lx.size() <= 1 && rx.size() >= 3) {
-            states = handleRightLaneOnly(rx, overlay);
-        }
-        else if (lx.size() >= 3 && rx.size() <= 1) {
-            states = handleLeftLaneOnly(lx, overlay);
-        }
-        else {
-            states = handleBothLanes(lx, rx, overlay);
-        }
-
-        // Calculate steering angle using Stanley controller
+        // Calculate steering control and update split angle
         int delta = stanleyControl(states.offset, states.angle_y, 0.4, 0.79);
         int steeringAngle = 80 + delta;
-        splitAngle = steeringAngle + 10;
-        auto start = std::chrono::high_resolution_clock::now();
-        float steering_angle_deg = mpcControl(x0, v_k);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    
-        std::cout << "Computed steering angle (deg): " << steering_angle_deg << std::endl;
-        std::cout << "Solve time: " << duration.count() << " us" << std::endl;
-        // Visualize results
-        //auto result = visualize(frame, warped, overlay, pts1, pts2, delta, states);
-        showFPS(lastTick, fps);
-        //cv::imshow("Left", leftImage);
-        //cv::imshow("Right", rightImage);
-        //cv::imshow("Lane Detection", result);
-        //cv::imshow("Mask", mask);
+        splitAngle = updateSplitAngle(steeringAngle);
 
-        if (cv::waitKey(10) == 27) break;  // Exit if 'Esc' is pressed
+        std::cout << "[STEERING] Góc đánh lái = " << steeringAngle << std::endl;
+
+        showFPS(lastTick, fps);
+        // Visualize and show results
+        auto result = visualize(frame, warped, warped, pts1, pts2, delta, states);
+        cv::imshow("Lane Detection", result);
+        cv::imshow("Mask", mask);
+        if (cv::waitKey(10) == 27) break;
     }
 
-    vidcap.release();
-    cv::destroyAllWindows();
+    std::cout << "[STEERING] Thread exited." << std::endl;
+}
+
+
+int main() {
+
+    std::thread t1(image_reader, IMAGE_READ_FROM_VIDEO); // Truyền đối số IMAGE_READ_FROM_VIDEO vào image_reader
+    std::thread t2(steering_processor);  // steering_processor không có đối số
+    std::thread t3(encoder_reader_random);  // Truyền serial_port và SERIAL_READ vào encoder_reader
+    std::thread t4(imu_reader, IMU_RANDOM);  // Truyền IMU_RANDOM vào imu_reader
+    std::thread t5(signal_receiver, 8888);  // Truyền cổng vào signal_receiver
+    std::thread t6(server_uploader, "192.168.1.110", 8890);  // Truyền địa chỉ IP và cổng vào server_uploader
+
+    t1.join();
+    t2.join();
+    t3.join();
+    t4.join();
+    t5.join();
+    t6.join();
+
     return 0;
 }
