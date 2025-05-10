@@ -7,7 +7,9 @@
 #include <cmath>
 #include <thread>
 #include <chrono>
+#include <cmath>
 
+int N = 6;
 // Camera intrinsic parameters (calibration data)
 cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) <<
     262.08953333143063, 0.0, 330.77574325128484,
@@ -168,12 +170,12 @@ int getBase(const cv::Mat& hist, int start, int end) {
 std::vector<int> detectLanePoints(const cv::Mat& mask, int base) {
     std::vector<int> points;
     int y = mask.rows - 8;
-    while (y > mask.rows * 0.55) {
+    while (y > mask.rows * 0.35) {
         // Đảm bảo ROI không vượt quá ảnh
         int roi_x = base - 30;
-        int roi_y = y - 35;
+        int roi_y = y - 30; 
         int roi_width = 60;
-        int roi_height = 25;
+        int roi_height = 30;
 
         roi_x = std::max(roi_x, 0);  
         roi_y = std::max(roi_y, 0);  
@@ -193,8 +195,8 @@ std::vector<int> detectLanePoints(const cv::Mat& mask, int base) {
                 base = base - 30 + cx;
             }
         }
-        cv::rectangle (mask, {base - 30, y}, {base + 30, y - 25}, cv::Scalar(255, 0, 0), 2);
-        y -= 25;
+        cv::rectangle (mask, {base - 30, y}, {base + 30, y - 30}, cv::Scalar(255, 0, 0), 2);
+        y -= 30;
     }
     return points;
 }
@@ -213,91 +215,148 @@ void drawPolynomial(cv::Mat& image, const cv::Vec3f& coeffs, const cv::Scalar& c
     }
 }
 
-// Khớp đa thức bậc 2 theo chiều y
-cv::Vec3f fitPolynomial(const std::vector<cv::Point>& pts) {
+
+cv::Vec3f fitPolynomial(const std::vector<cv::Point2f>& pts) {
     if (pts.size() < 2) return cv::Vec3f(0, 0, 0);
 
     cv::Mat X(static_cast<int>(pts.size()), 3, CV_32F);
     cv::Mat Y(static_cast<int>(pts.size()), 1, CV_32F);
 
     for (size_t i = 0; i < pts.size(); ++i) {
-        float y = static_cast<float>(pts[i].y);
-        X.at<float>(static_cast<int>(i), 0) = y * y;
-        X.at<float>(static_cast<int>(i), 1) = y;
-        X.at<float>(static_cast<int>(i), 2) = 1;
-        Y.at<float>(static_cast<int>(i), 0) = static_cast<float>(pts[i].x);
+        float y = pts[i].y;
+        X.at<float>(i, 0) = y * y;
+        X.at<float>(i, 1) = y;
+        X.at<float>(i, 2) = 1;
+        Y.at<float>(i, 0) = pts[i].x;
     }
 
     cv::Mat coeffs;
-    int check;
-    cv::solve(X, Y, coeffs, cv::DECOMP_SVD) == 0;
+    cv::solve(X, Y, coeffs, cv::DECOMP_SVD);
     return cv::Vec3f(coeffs.at<float>(0), coeffs.at<float>(1), coeffs.at<float>(2));
 }
+
 
 // Xử lý khi chỉ có làn phải
 vehicleState handleRightLaneOnly(const std::vector<int>& rx, cv::Mat& overlay) {
     vehicleState result;
     if (rx.size() < 2) return result;
 
-    std::vector<cv::Point> rightPoints;
+    std::vector<cv::Point2f> rightPoints;
     for (size_t i = 0; i < rx.size(); ++i)
         rightPoints.emplace_back(rx[i], 470 - static_cast<int>(i) * 35);
 
     cv::Vec3f right_fit = fitPolynomial(rightPoints);
-    float y_eval = 450;
-    result.curvature = computeCurvature(right_fit, y_eval, PIXEL_TO_METER);
-    float slope = 2 * right_fit[0] * y_eval + right_fit[1];
-    result.angle_y = calculateAngle(slope);
-    result.offset = -((530.0f / 2.0f) - std::abs(rx[0] - 320)) * PIXEL_TO_METER;
+
+    std::vector<cv::Point2f> centerPoints;
+    float lane_offset_pixel = (LANE_WIDTH / 2.0f) / PIXEL_TO_METER;
+
+    for (size_t i = 0; i < rightPoints.size(); ++i) {
+        float y = rightPoints[i].y;
+        float x_right = right_fit[0] * y * y + right_fit[1] * y + right_fit[2];
+
+        float slope = 2 * right_fit[0] * y + right_fit[1];
+        float theta = std::atan(slope);  // hướng tiếp tuyến
+
+        // Dịch sang trái bằng pháp tuyến θ - π/2
+        float dx = std::cos(theta - CV_PI / 2);
+        float dy = std::sin(theta - CV_PI / 2);
+
+        float x_center = x_right + dx * lane_offset_pixel;
+        float y_center = y + dy * lane_offset_pixel;
+
+        centerPoints.emplace_back(x_center, y_center);
+    }
+
+    // Fit lại đường giữa làn từ tập điểm đã dịch
+    cv::Vec3f center_fit = fitPolynomial(centerPoints);
+
+    // Tính toán tại y_eval
+    float y_eval = 468.0f;
+    float slope_at_eval = 2 * center_fit[0] * y_eval + center_fit[1];
+    float x_center_at_eval = center_fit[0] * y_eval * y_eval + center_fit[1] * y_eval + center_fit[2];
+
+    result.angle_y = calculateAngle(slope_at_eval);
+    result.curvature = computeMultipleCurvatures(center_fit, N, PIXEL_TO_METER);
+
+    int rawOffset = -((PIXELS_PER_LANE / 2.0f) - std::abs(rx[0] - 320)) * PIXEL_TO_METER;
+    result.offset = rawOffset - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
 
     #ifdef DEBUG_IMAGE_LANE
-        // Vẽ trên hình ảnh
-        drawPolynomial(overlay, right_fit, cv::Scalar(0, 255, 255));
+        drawPolynomial(overlay, center_fit, cv::Scalar(0, 255, 255));  // đường giữa
+        drawPolynomial(overlay, right_fit, cv::Scalar(255, 0, 255));   // vạch phải
+        for (const auto& pt : centerPoints)
+            cv::circle(overlay, pt, 2, cv::Scalar(0, 255, 255), -1);   // điểm giữa làn
     #endif
     #ifdef DEBUG_TERMINAL_LANE
-        std::cout << "...........................[Right lane only]..........................:\n"
-        << "Slope: " << slope << "\n"
-        << "Angle wrt Y: " << result.angle_y << " deg\n"
-        << "Curvature: " << result.curvature << " m\n"
-        << "Offset: " << result.offset << " m\n";
+        std::cout << "...........................[Right lane only – Tangent-based Estimation]....................\n"
+                  << "Slope: " << slope_at_eval << "\n"
+                  << "Angle wrt Y: " << result.angle_y << " deg\n"
+                  << "Offset: " << result.offset << " m\n";
     #endif
 
     return result;
 }
 
 
-
-// Xử lý khi chỉ có làn trái
 vehicleState handleLeftLaneOnly(const std::vector<int>& lx, cv::Mat& overlay) {
     vehicleState result;
     if (lx.size() < 2) return result;
 
-    std::vector<cv::Point> leftPoints;
+    std::vector<cv::Point2f> leftPoints;
     for (size_t i = 0; i < lx.size(); ++i)
-        leftPoints.emplace_back(lx[i], 470 - static_cast<int>(i) * 35);
+        leftPoints.emplace_back(lx[i], 470 - static_cast<int>(i) * 30);
 
     cv::Vec3f left_fit = fitPolynomial(leftPoints);
-    float y_eval = 450;
-    result.curvature = computeCurvature(left_fit, y_eval, PIXEL_TO_METER);
-    float slope = 2 * left_fit[0] * y_eval + left_fit[1];
-    result.angle_y = calculateAngle(slope);
-    result.offset = ((530.0f / 2.0f) - std::abs(lx[0] - 320)) * PIXEL_TO_METER;
 
-    
+    std::vector<cv::Point2f> centerPoints;
+    float lane_offset_pixel = (LANE_WIDTH / 2.0f) / PIXEL_TO_METER;  
+
+    for (size_t i = 0; i < leftPoints.size(); ++i) {
+        float y = static_cast<float>(leftPoints[i].y);
+        float x_left = left_fit[0] * y * y + left_fit[1] * y + left_fit[2];
+
+        float slope = 2 * left_fit[0] * y + left_fit[1];
+        float theta = std::atan(slope);  // hướng tiếp tuyến
+
+        // Dịch vuông góc sang phải (góc vuông + π/2)
+        float dx = std::cos(theta + CV_PI / 2);
+        float dy = std::sin(theta + CV_PI / 2);
+
+        float x_center = x_left + dx * lane_offset_pixel;
+        float y_center = y + dy * lane_offset_pixel;
+
+        centerPoints.emplace_back(x_center, y_center);
+    }
+
+    // Fit lại đường giữa làn từ tập điểm đã dịch
+    cv::Vec3f center_fit = fitPolynomial(centerPoints);
+
+    // Tính toán tại y_eval
+    float y_eval = 468.0f;
+    float slope_at_eval = 2 * center_fit[0] * y_eval + center_fit[1];
+    float x_center_at_eval = center_fit[0] * y_eval * y_eval + center_fit[1] * y_eval + center_fit[2];
+
+    result.angle_y = calculateAngle(slope_at_eval);
+    result.curvature = computeMultipleCurvatures(center_fit, N, PIXEL_TO_METER);
+
+    int rawOffset = ((PIXELS_PER_LANE / 2.0f) - std::abs(lx[0] - 320)) * PIXEL_TO_METER;
+    result.offset = rawOffset - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
+
     #ifdef DEBUG_IMAGE_LANE
-        // Vẽ trên hình ảnh
-        drawPolynomial(overlay, left_fit, cv::Scalar(0, 255, 0));
+        drawPolynomial(overlay, center_fit, cv::Scalar(0, 255, 0));  // Tâm làn
+        drawPolynomial(overlay, left_fit, cv::Scalar(0, 0, 255));    // Vạch trái
+        for (const auto& pt : centerPoints)
+            cv::circle(overlay, pt, 2, cv::Scalar(0, 255, 255), -1); // Các điểm center vàng
     #endif
     #ifdef DEBUG_TERMINAL_LANE
-        std::cout << "...........................[Left lane only]........................\n"
-                << "Slope: " << slope << "\n"
-                << "Angle wrt Y: " << result.angle_y << " deg\n"
-                << "Curvature: " << result.curvature << " m\n"
-                << "Offset: " << result.offset << " m\n";
+        std::cout << "...........................[Left lane only – Tangent-based Estimation]....................\n"
+                  << "Slope: " << slope_at_eval << "\n"
+                  << "Angle wrt Y: " << result.angle_y << " deg\n"
+                  << "Offset: " << result.offset << " m\n";
     #endif
+
     return result;
 }
-
 
 
 vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>& rx, cv::Mat& overlay) {
@@ -310,8 +369,8 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
 
     // Lấy vector midpoint và vẽ kết quả lên overlay
     for (int i = 0; i < minLength; ++i) {
-        cv::Point left(lx[i], 470 - i * 35);
-        cv::Point right(rx[i], 470 - i * 35);
+        cv::Point left(lx[i], 470 - i * 30);
+        cv::Point right(rx[i], 470 - i * 30);
 
         // Lưu các điểm bên trái và bên phải 
         leftPoints.push_back(left);
@@ -338,12 +397,6 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
 
     // Tính toán các trạng thái của xe so với làn đường 
     vehicleState result;
-    int carPosition = 320;
-    int laneCenter = (lx[0] + rx[0]) / 2;
-
-    // Tính vector offset
-    result.offset = (laneCenter - carPosition) * PIXEL_TO_METER;
-
     float slope = 0;
     float intercept = 0;
     float angle_x = 0;
@@ -363,7 +416,7 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
         else {
             result.angle_y = - (90 - std::abs(angle_x));
         }
-        result.curvature = 0;
+        result.curvature = std::vector<float>(N, 0.0f);
     }
 
     else if (midpoints.size() >= 3) {
@@ -393,15 +446,16 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
         }
 
         // Calculate cuvarute
-        cv::Vec3f left_fit = fitPolynomial(leftPoints);
-        cv::Vec3f right_fit = fitPolynomial(rightPoints);
-    
-        int y_eval = 450;
-        float leftCurv = computeCurvature(right_fit, y_eval, PIXEL_TO_METER);
-        float rightCurv = computeCurvature(left_fit, y_eval, PIXEL_TO_METER);
-    
-        result.curvature = (leftCurv + rightCurv) / 2;
+        cv::Vec3f midFit = fitPolynomial(midpoints);
+        result.curvature = computeMultipleCurvatures(midFit, N, PIXEL_TO_METER);
     }
+
+
+    int carPosition = 320;
+    int laneCenter = (lx[0] + rx[0]) / 2;
+    // Tính vector offset
+    int rawDistance = (laneCenter - carPosition) * PIXEL_TO_METER;
+    result.offset = rawDistance  - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
 
     #ifdef DEBUG_TERMINAL_LANE
         // In kết quả để debug
@@ -415,9 +469,9 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
 }
 
 cv::Mat visualize(const cv::Mat& original, const cv::Mat& warped, const cv::Mat& overlay,
-    #ifdef DEBUG_IMAGE_LANE
         const std::vector<cv::Point2f>& pts1, const std::vector<cv::Point2f>& pts2,
         double denta, vehicleState states) {
+    #ifdef DEBUG_IMAGE_LANE
         cv::Mat invMatrix = cv::getPerspectiveTransform(pts2, pts1);
         cv::Mat lane_overlay;
         cv::warpPerspective(overlay, lane_overlay, invMatrix, original.size());
@@ -441,7 +495,7 @@ cv::Mat visualize(const cv::Mat& original, const cv::Mat& warped, const cv::Mat&
 
 /******************************Compute functions**********************************************/
 
-float computeCurvature(const cv::Vec3f& fit, float y_eval, float scale_factor = 0.00062857f) {
+float computeCurvatureRadius(const cv::Vec3f& fit, float y_eval, float scale_factor = 0.00062857f) {
     float dy = 2 * fit[0] * y_eval + fit[1];
     float curvature = std::pow(1 + dy * dy, 1.5f) / std::abs(2 * fit[0]);
     return curvature * scale_factor;
@@ -452,6 +506,24 @@ float calculateAngle(float slope) {
     return -std::atan(slope) * 180.0f / CV_PI;
 }
 
+std::vector<float> computeMultipleCurvatures(const cv::Vec3f& coeffs, int M = 6, float scale_factor = PIXEL_TO_METER) {
+    std::vector<float> curvatures;
+    float a = coeffs[0];
+    float b = coeffs[1];
+
+    for (int i = 0; i < M; ++i) {
+        float y = 472.0f - i * 38.0f;  //38 diem anh -- 3cm
+        float dy = 2.0f * a * y + b;
+        float numerator = std::abs(2.0f * a);
+        float denominator = std::pow(1.0f + dy * dy, 1.5f);
+
+        float kappa_px = (denominator != 0.0f) ? (numerator / denominator) : 0.0f;
+        float kappa_m = kappa_px / scale_factor;
+        curvatures.push_back(kappa_m);
+    }
+
+    return curvatures;
+}
 
 
 void showFPS(double& lastTick, double& fps) {
@@ -518,16 +590,16 @@ vehicleState computeControlParam(const std::vector<int>& lx, const std::vector<i
 
     vehicleState states;
 
-    if (lx.size() <= 1 && rx.size() >= 3) {
+    if (lx.size() <= 2 && rx.size() >= 3) {
         states = handleRightLaneOnly(rx, overlay);
-    } else if (lx.size() >= 3 && rx.size() <= 1) {
+    } else if (lx.size() >= 3 && rx.size() <= 2) {
         states = handleLeftLaneOnly(lx, overlay);
-    } else if (lx.size() >= 2 && rx.size() >= 2) {
+    } else if (lx.size() >= 3 && rx.size() >= 3) {
         states = handleBothLanes(lx, rx, overlay);
     }
     else {
         states.angle_y = 0;
-        states.curvature = 0;
+        states.curvature = std::vector<float>(N, 0.0f);
         states.offset = 0;
     }
     return states;
@@ -547,7 +619,7 @@ void image_reader(const bool isReadfromVideo) {
     if (isReadfromVideo) {
         cap.open("thap.mp4");
     } else {
-        cap.open(0);
+        cap.open(0, cv::CAP_V4L2);
     }
 
     if (!cap.isOpened()) {

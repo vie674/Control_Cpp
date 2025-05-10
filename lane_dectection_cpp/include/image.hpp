@@ -4,17 +4,24 @@
 
 #define IMAGE_READ_FROM_VIDEO 1
 #define IMAGE_READ_FROM_CAM   0 
-#define PIXEL_TO_METER 0.000914f
+#define PIXEL_TO_METER 0.000733f
+#define PIXELS_PER_LANE 382
+#define DEG2RAD(deg) ((deg) * M_PI / 180.0f)
+#define DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE 0.15f
+#define DISTANCE_FROM_FRONT_AXLE_TO_COM 0.12f + 0.15f
+#define LANE_WIDTH 0.29f
 
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <cmath>
+
 
 extern cv::Mat cameraMatrix;
 extern cv::Mat distCoeffs;
 
 // Cấu trúc lưu trạng thái xe
 struct vehicleState {
-    float curvature = 0.0f;
+    std::vector<float> curvature;
     float angle_y = 0.0f;
     float offset = 0.0f;
 };
@@ -51,10 +58,11 @@ std::vector<int> detectLanePoints(const cv::Mat& mask, int base);
 void drawPolynomial(cv::Mat& image, const cv::Vec3f& coeffs, const cv::Scalar& color, int step) ;
 
 // Fit đa thức bậc 2 từ tập điểm (y^2, y, 1)
-cv::Vec3f fitPolynomial(const std::vector<cv::Point>& pts);
+cv::Vec3f fitPolynomial(const std::vector<cv::Point2f>& pts);
 
 // Tính độ cong (radius of curvature)
-float computeCurvature(const cv::Vec3f& fit, float y_eval, float scale_factor);
+float computeCurvatureRadius(const cv::Vec3f& fit, float y_eval, float scale_factor);
+std::vector<float> computeMultipleCurvatures(const cv::Vec3f& coeffs, int M , float scale_factor );
 
 // Tính góc lệch (từ slope)
 float calculateAngle(float slope);

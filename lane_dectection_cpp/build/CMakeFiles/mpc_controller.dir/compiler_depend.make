@@ -1143,9 +1143,7 @@ CMakeFiles/mpc_controller.dir/src/image.cpp.o: ../src/image.cpp \
 CMakeFiles/mpc_controller.dir/src/imu.cpp.o: ../src/imu.cpp \
   /usr/include/stdc-predef.h \
   ../include/imu.hpp \
-  ../include/share.hpp \
-  /usr/include/c++/11/atomic \
-  /usr/include/c++/11/bits/atomic_base.h \
+  /usr/include/c++/11/cstdint \
   /usr/include/x86_64-linux-gnu/c++/11/bits/c++config.h \
   /usr/include/x86_64-linux-gnu/c++/11/bits/os_defines.h \
   /usr/include/features.h \
@@ -1167,6 +1165,9 @@ CMakeFiles/mpc_controller.dir/src/imu.cpp.o: ../src/imu.cpp \
   /usr/include/x86_64-linux-gnu/bits/wchar.h \
   /usr/include/x86_64-linux-gnu/bits/stdint-intn.h \
   /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h \
+  ../include/share.hpp \
+  /usr/include/c++/11/atomic \
+  /usr/include/c++/11/bits/atomic_base.h \
   /usr/include/c++/11/bits/atomic_lockfree_defines.h \
   /usr/include/c++/11/bits/move.h \
   /usr/include/c++/11/type_traits \
@@ -1196,7 +1197,6 @@ CMakeFiles/mpc_controller.dir/src/imu.cpp.o: ../src/imu.cpp \
   /usr/include/c++/11/bits/invoke.h \
   /usr/include/c++/11/chrono \
   /usr/include/c++/11/ratio \
-  /usr/include/c++/11/cstdint \
   /usr/include/c++/11/limits \
   /usr/include/c++/11/ctime \
   /usr/include/time.h \
@@ -1559,7 +1559,43 @@ CMakeFiles/mpc_controller.dir/src/imu.cpp.o: ../src/imu.cpp \
   /usr/include/opencv4/opencv2/video.hpp \
   /usr/include/opencv4/opencv2/video/tracking.hpp \
   /usr/include/opencv4/opencv2/video/background_segm.hpp \
-  ../include/debug.hpp
+  ../include/debug.hpp \
+  /usr/include/unistd.h \
+  /usr/include/x86_64-linux-gnu/bits/posix_opt.h \
+  /usr/include/x86_64-linux-gnu/bits/environments.h \
+  /usr/include/x86_64-linux-gnu/bits/confname.h \
+  /usr/include/x86_64-linux-gnu/bits/getopt_posix.h \
+  /usr/include/x86_64-linux-gnu/bits/getopt_core.h \
+  /usr/include/x86_64-linux-gnu/bits/unistd_ext.h \
+  /usr/include/linux/close_range.h \
+  /usr/include/fcntl.h \
+  /usr/include/x86_64-linux-gnu/bits/fcntl.h \
+  /usr/include/x86_64-linux-gnu/bits/fcntl-linux.h \
+  /usr/include/x86_64-linux-gnu/bits/types/struct_iovec.h \
+  /usr/include/linux/falloc.h \
+  /usr/include/x86_64-linux-gnu/bits/stat.h \
+  /usr/include/x86_64-linux-gnu/bits/struct_stat.h \
+  /usr/include/linux/i2c-dev.h \
+  /usr/include/linux/types.h \
+  /usr/include/x86_64-linux-gnu/asm/types.h \
+  /usr/include/asm-generic/types.h \
+  /usr/include/asm-generic/int-ll64.h \
+  /usr/include/x86_64-linux-gnu/asm/bitsperlong.h \
+  /usr/include/asm-generic/bitsperlong.h \
+  /usr/include/linux/posix_types.h \
+  /usr/include/linux/stddef.h \
+  /usr/include/x86_64-linux-gnu/asm/posix_types.h \
+  /usr/include/x86_64-linux-gnu/asm/posix_types_64.h \
+  /usr/include/asm-generic/posix_types.h \
+  /usr/include/x86_64-linux-gnu/sys/ioctl.h \
+  /usr/include/x86_64-linux-gnu/bits/ioctls.h \
+  /usr/include/x86_64-linux-gnu/asm/ioctls.h \
+  /usr/include/asm-generic/ioctls.h \
+  /usr/include/linux/ioctl.h \
+  /usr/include/x86_64-linux-gnu/asm/ioctl.h \
+  /usr/include/asm-generic/ioctl.h \
+  /usr/include/x86_64-linux-gnu/bits/ioctl-types.h \
+  /usr/include/x86_64-linux-gnu/sys/ttydefaults.h
 
 CMakeFiles/mpc_controller.dir/src/main.cpp.o: ../src/main.cpp \
   /usr/include/stdc-predef.h \
@@ -3075,31 +3111,11 @@ CMakeFiles/mpc_controller.dir/src/socket.cpp.o: ../src/socket.cpp \
   /usr/include/arpa/inet.h
 
 
-/usr/include/x86_64-linux-gnu/bits/unistd_ext.h:
-
-/usr/include/x86_64-linux-gnu/bits/getopt_posix.h:
-
-/usr/include/x86_64-linux-gnu/bits/confname.h:
-
-/usr/include/x86_64-linux-gnu/bits/posix_opt.h:
-
 /usr/include/x86_64-linux-gnu/bits/in.h:
-
-/usr/include/x86_64-linux-gnu/asm/bitsperlong.h:
-
-/usr/include/asm-generic/posix_types.h:
-
-/usr/include/x86_64-linux-gnu/asm/posix_types.h:
-
-/usr/include/linux/stddef.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/struct_iovec.h:
 
 /usr/include/netinet/in.h:
 
 ../src/serial.cpp:
-
-/usr/include/x86_64-linux-gnu/sys/ttydefaults.h:
 
 /usr/include/x86_64-linux-gnu/bits/termios-tcflow.h:
 
@@ -3122,6 +3138,46 @@ CMakeFiles/mpc_controller.dir/src/socket.cpp.o: ../src/socket.cpp \
 ../include/serial.hpp:
 
 ../src/main.cpp:
+
+/usr/include/x86_64-linux-gnu/sys/ttydefaults.h:
+
+/usr/include/x86_64-linux-gnu/bits/ioctl-types.h:
+
+/usr/include/asm-generic/ioctl.h:
+
+/usr/include/x86_64-linux-gnu/asm/ioctl.h:
+
+/usr/include/linux/ioctl.h:
+
+/usr/include/asm-generic/ioctls.h:
+
+/usr/include/x86_64-linux-gnu/asm/ioctls.h:
+
+/usr/include/x86_64-linux-gnu/sys/ioctl.h:
+
+/usr/include/asm-generic/posix_types.h:
+
+/usr/include/x86_64-linux-gnu/asm/posix_types.h:
+
+/usr/include/linux/stddef.h:
+
+/usr/include/x86_64-linux-gnu/asm/bitsperlong.h:
+
+/usr/include/asm-generic/types.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct_iovec.h:
+
+/usr/include/x86_64-linux-gnu/bits/fcntl-linux.h:
+
+/usr/include/fcntl.h:
+
+/usr/include/x86_64-linux-gnu/bits/unistd_ext.h:
+
+/usr/include/x86_64-linux-gnu/bits/getopt_posix.h:
+
+/usr/include/x86_64-linux-gnu/bits/confname.h:
+
+/usr/include/x86_64-linux-gnu/bits/posix_opt.h:
 
 ../include/imu.hpp:
 
@@ -3210,6 +3266,8 @@ CMakeFiles/mpc_controller.dir/src/socket.cpp.o: ../src/socket.cpp \
 /usr/include/eigen3/Eigen/Sparse:
 
 /usr/local/include/OsqpEigen/SparseMatrixHelper.hpp:
+
+/usr/include/linux/types.h:
 
 /usr/local/include/OsqpEigen/Data.hpp:
 
@@ -3379,6 +3437,8 @@ CMakeFiles/mpc_controller.dir/src/socket.cpp.o: ../src/socket.cpp \
 
 /usr/include/eigen3/Eigen/src/Core/GenericPacketMath.h:
 
+/usr/include/linux/i2c-dev.h:
+
 /usr/include/c++/11/bits/stl_relops.h:
 
 /usr/include/limits.h:
@@ -3524,6 +3584,8 @@ CMakeFiles/mpc_controller.dir/src/socket.cpp.o: ../src/socket.cpp \
 /usr/include/c++/11/clocale:
 
 /usr/include/c++/11/cstdint:
+
+/usr/include/x86_64-linux-gnu/bits/stat.h:
 
 /usr/include/x86_64-linux-gnu/bits/waitstatus.h:
 
@@ -3751,9 +3813,13 @@ CMakeFiles/mpc_controller.dir/src/socket.cpp.o: ../src/socket.cpp \
 
 /usr/include/x86_64-linux-gnu/bits/types/clock_t.h:
 
+/usr/include/x86_64-linux-gnu/bits/ioctls.h:
+
 /usr/include/x86_64-linux-gnu/sys/cdefs.h:
 
 /usr/include/eigen3/Eigen/src/Core/DiagonalProduct.h:
+
+/usr/include/x86_64-linux-gnu/bits/fcntl.h:
 
 /usr/include/eigen3/Eigen/IterativeLinearSolvers:
 
@@ -3991,9 +4057,13 @@ CMakeFiles/mpc_controller.dir/src/socket.cpp.o: ../src/socket.cpp \
 
 /usr/include/x86_64-linux-gnu/bits/floatn-common.h:
 
+/usr/include/x86_64-linux-gnu/bits/struct_stat.h:
+
 /usr/include/x86_64-linux-gnu/bits/types/wint_t.h:
 
 /usr/include/opencv4/opencv2/flann/logger.h:
+
+/usr/include/linux/falloc.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/mbstate_t.h:
 
@@ -4040,6 +4110,8 @@ CMakeFiles/mpc_controller.dir/src/socket.cpp.o: ../src/socket.cpp \
 /usr/include/eigen3/Eigen/src/Core/util/SymbolicIndex.h:
 
 /usr/include/eigen3/Eigen/src/Core/SolverBase.h:
+
+/usr/include/x86_64-linux-gnu/asm/types.h:
 
 /usr/include/eigen3/Eigen/src/IterativeLinearSolvers/SolveWithGuess.h:
 
@@ -4220,6 +4292,8 @@ CMakeFiles/mpc_controller.dir/src/socket.cpp.o: ../src/socket.cpp \
 /usr/include/eigen3/Eigen/src/Core/TriangularMatrix.h:
 
 /usr/include/eigen3/Eigen/src/Core/SelfAdjointView.h:
+
+/usr/include/asm-generic/int-ll64.h:
 
 /usr/include/c++/11/atomic:
 

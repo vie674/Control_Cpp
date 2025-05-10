@@ -9,6 +9,8 @@
 #include <opencv2/opencv.hpp>
 #include <thread>
 #include <chrono>
+#include <cstdint> 
+
 
 void signal_receiver(int port) {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -69,7 +71,7 @@ void server_uploader(std::string serverIpAddr, int port) {
         std::vector<uchar> buf;
         cv::imencode(".jpg", local_frame, buf);
 
-        int size = buf.size();
+        int32_t size = buf.size();
         send(sock, &size, sizeof(size), 0);
         send(sock, buf.data(), size, 0);
 
@@ -81,7 +83,7 @@ void server_uploader(std::string serverIpAddr, int port) {
                                   ",AY:" + std::to_string(local_imu[4]) +
                                   ",ASIG:" + std::to_string(local_imu[5]);
 
-        int text_len = sensor_data.size();
+        int32_t text_len = sensor_data.size();
         send(sock, &text_len, sizeof(text_len), 0);
         send(sock, sensor_data.c_str(), text_len, 0);
         

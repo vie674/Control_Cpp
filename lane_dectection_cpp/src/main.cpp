@@ -56,21 +56,21 @@ void steering_processor() {
     double fps = 0;     
     double lastTick = cv::getTickCount();
 
-    mpcInit(40.0, 5.0, 5.0);
-    Eigen::VectorXd x0(4);
+    mpcInit(5.0, 5.0, 5.0);
+    Eigen::VectorXd x(4);
+    Eigen::VectorXd v_k(6);
 
+    x << 0.0, 0.0, 0.0, 0.0;
     while (!stop_flag) {
         cv::Mat frame;
         {
             std::lock_guard<std::mutex> lock(mtx);
             if (shared_frame.empty()) continue;
             shared_frame.copyTo(frame);
-        }
+        }   
 
         int local_signal = control_signal.load();
-        x0 << 0, 0.0, 0.0, 0.0;
-        Eigen::VectorXd v_k = Eigen::VectorXd::Zero(15 * 1);
-
+        
         // Preprocess frame and split into left/right
         preprocessAndSplitFrame(frame, undistortData, splitAngle, leftImage, rightImage, pts1, pts2, mask, warped);
 
@@ -81,8 +81,16 @@ void steering_processor() {
         // Compute control parameters
         vehicleState states = computeControlParam(lx, rx, warped, splitAngle);
 
+        for (int i = 0; i < 6; i++) {
+            v_k(i) = states.curvature[i] * 0.3 ;
+            std::cout << " lane "<<  states.curvature[i];
+        }
+
+        std::cout << " --- " << states.offset << " --- " << states.angle_y;
+        x << states.offset, states.offset/0.03, states.angle_y *3.14 /180, (states.angle_y/0.03)*3.14 /180;
         // Calculate steering control and update split angle
-        int delta = stanleyControl(states.offset, states.angle_y, 0.4, 0.79);
+        //int delta = stanleyControl(states.offset, states.angle_y, 0.3, 0.6);
+        int delta = mpcControl(x, v_k);
         int steeringAngle = 80 + delta;
         splitAngle = updateSplitAngle(steeringAngle);
 
@@ -93,6 +101,8 @@ void steering_processor() {
         auto result = visualize(frame, warped, warped, pts1, pts2, delta, states);
         cv::imshow("Lane Detection", result);
         cv::imshow("Mask", mask);
+        cv::imshow("left",leftImage);
+        cv::imshow("right,",rightImage);
         if (cv::waitKey(10) == 27) break;
     }
 
@@ -105,7 +115,7 @@ int main() {
     std::thread t1(image_reader, IMAGE_READ_FROM_VIDEO); // Truyền đối số IMAGE_READ_FROM_VIDEO vào image_reader
     std::thread t2(steering_processor);  // steering_processor không có đối số
     std::thread t3(encoder_reader_random);  // Truyền serial_port và SERIAL_READ vào encoder_reader
-    std::thread t4(imu_reader, IMU_RANDOM);  // Truyền IMU_RANDOM vào imu_reader
+    std::thread t4(imu_reader_random, IMU_RANDOM);  // Truyền IMU_RANDOM vào imu_reader
     std::thread t5(signal_receiver, 8888);  // Truyền cổng vào signal_receiver
     std::thread t6(server_uploader, "192.168.1.110", 8890);  // Truyền địa chỉ IP và cổng vào server_uploader
 
