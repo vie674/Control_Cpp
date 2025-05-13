@@ -56,6 +56,11 @@ void steering_processor() {
     double fps = 0;     
     double lastTick = cv::getTickCount();
 
+    if (!initializeSerial(serial_port, portName)) {
+    std::cerr << "[ERROR] Không thể khởi tạo cổng serial trong encoder_reader_serial." << std::endl;
+    return;
+    }
+
     mpcInit(5.0, 5.0, 5.0);
     Eigen::VectorXd x(4);
     Eigen::VectorXd v_k(6);
@@ -77,47 +82,50 @@ void steering_processor() {
         // Detect lane lines
         std::vector<int> lx, rx;
         detectLaneLines(mask, leftImage, rightImage, prevLx, prevRx, lx, rx);
-
+        std::cout << "FF" << lx[0] - rx[0] <<"FF";
         // Compute control parameters
         vehicleState states = computeControlParam(lx, rx, warped, splitAngle);
 
         for (int i = 0; i < 6; i++) {
-            v_k(i) = states.curvature[i] * 0.3 ;
-            std::cout << " lane "<<  states.curvature[i];
+            v_k(i) = 0 ;
         }
-
-        std::cout << " --- " << states.offset << " --- " << states.angle_y;
+        
         x << states.offset, states.offset/0.03, states.angle_y *3.14 /180, (states.angle_y/0.03)*3.14 /180;
+
+
         // Calculate steering control and update split angle
-        //int delta = stanleyControl(states.offset, states.angle_y, 0.3, 0.6);
-        int delta = mpcControl(x, v_k);
+        int delta = stanleyControl(states.offset, states.angle_y, 0.3, 0.2);
+        //std::cout <<"--"<< states.offset << "--" << states.angle_y <<"--" << delta; 
+        //int delta = mpcControl(x, v_k);
         int steeringAngle = 80 + delta;
         splitAngle = updateSplitAngle(steeringAngle);
+        sendToSerial (serial_port, 4900, steeringAngle);
 
         std::cout << "[STEERING] Góc đánh lái = " << steeringAngle << std::endl;
 
         showFPS(lastTick, fps);
         // Visualize and show results
-        auto result = visualize(frame, warped, warped, pts1, pts2, delta, states);
-        cv::imshow("Lane Detection", result);
-        cv::imshow("Mask", mask);
-        cv::imshow("left",leftImage);
-        cv::imshow("right,",rightImage);
+        //auto result = visualize(frame, warped, warped, pts1, pts2, delta, states);
+        //cv::imshow("Lane Detection", result);
+        //cv::imshow("Mask", mask);
+        //cv::imshow("left",leftImage);
+        //cv::imshow("right,",  rightImage);
         if (cv::waitKey(10) == 27) break;
     }
 
     std::cout << "[STEERING] Thread exited." << std::endl;
+    sendToSerial (serial_port, 0, 80);
 }
 
 
 int main() {
 
-    std::thread t1(image_reader, IMAGE_READ_FROM_VIDEO); // Truyền đối số IMAGE_READ_FROM_VIDEO vào image_reader
-    std::thread t2(steering_processor);  // steering_processor không có đối số
+    std::thread t1(image_reader, IMAGE_READ_FROM_CAM); // Truyền đối số IMAGE_READ_FROM_VIDEO vào image_reader
+    std::thread t2(steering_processor);  // steering_processor không có đối sốh
     std::thread t3(encoder_reader_random);  // Truyền serial_port và SERIAL_READ vào encoder_reader
     std::thread t4(imu_reader_random, IMU_RANDOM);  // Truyền IMU_RANDOM vào imu_reader
     std::thread t5(signal_receiver, 8888);  // Truyền cổng vào signal_receiver
-    std::thread t6(server_uploader, "192.168.1.110", 8890);  // Truyền địa chỉ IP và cổng vào server_uploader
+    std::thread t6(server_uploader, "192.168.1.105", 8890);  // Truyền địa chỉ IP và cổng vào server_uploader
 
     t1.join();
     t2.join();

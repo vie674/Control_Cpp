@@ -7,6 +7,7 @@
 #include <OsqpEigen/OsqpEigen.h>
 #include <chrono>
 #include <algorithm>
+#include <cmath>
 
 const double Ts = 0.1;
 const int N = 6;
@@ -146,13 +147,17 @@ float mpcControl(Eigen::VectorXd& x0, Eigen::VectorXd& v_k) {
     return static_cast<float>(-u_cmd * 180.0 / M_PI);
 }
 
-int stanleyControl(double e, double psi, double v, double k) {
-    int delta = psi + std::atan(k * e / (v + 1e-6)) * 180.0 / (M_PI);
+
+int stanleyControl(float e, float psi, float v, float k) {
+    // Sử dụng M_PI để tính toán chính xác hơn
+    int delta = psi + std::atan(k * e / (v + 1e-6)) * 180.0 / M_PI;
+    
+    // Giới hạn góc lái trong phạm vi [-28, 28] độ
     if (delta > 28) {
-        delta = 28.0f;
+        delta = 28;
+    } else if (delta < -28) {
+        delta = -28;
     }
-    else if(delta < -28) {
-        delta = -28.0f;
-    }
+
     return delta;
 }

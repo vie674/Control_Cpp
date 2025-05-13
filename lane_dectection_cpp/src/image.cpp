@@ -63,10 +63,10 @@ cv::Mat perspectiveTransform(const cv::Mat& frame, std::vector<cv::Point2f>& pts
 
     // Tính toán các điểm cho phép biến đổi
     pts1 = { 
-        {0.0f, float(height)}, 
+        {0.0f + 27.0f, float(height)}, 
         {float(width), float(height)}, 
         {float(width * 0.70), float(height * 0.65)}, 
-        {float(width * 0.35), float(height * 0.65)} 
+        {float(width * 0.30 + 27.0f), float(height * 0.65)} 
     };
 
     pts2 = { 
@@ -278,8 +278,8 @@ vehicleState handleRightLaneOnly(const std::vector<int>& rx, cv::Mat& overlay) {
     result.angle_y = calculateAngle(slope_at_eval);
     result.curvature = computeMultipleCurvatures(center_fit, N, PIXEL_TO_METER);
 
-    int rawOffset = -((PIXELS_PER_LANE / 2.0f) - std::abs(rx[0] - 320)) * PIXEL_TO_METER;
-    result.offset = rawOffset - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
+    float rawOffset = -((PIXELS_PER_LANE / 2.0f) - std::abs(rx[0] - 320)) * PIXEL_TO_METER;
+    result.offset = rawOffset;// - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
 
     #ifdef DEBUG_IMAGE_LANE
         drawPolynomial(overlay, center_fit, cv::Scalar(0, 255, 255));  // đường giữa
@@ -339,8 +339,8 @@ vehicleState handleLeftLaneOnly(const std::vector<int>& lx, cv::Mat& overlay) {
     result.angle_y = calculateAngle(slope_at_eval);
     result.curvature = computeMultipleCurvatures(center_fit, N, PIXEL_TO_METER);
 
-    int rawOffset = ((PIXELS_PER_LANE / 2.0f) - std::abs(lx[0] - 320)) * PIXEL_TO_METER;
-    result.offset = rawOffset - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
+    float rawOffset = ((PIXELS_PER_LANE / 2.0f) - std::abs(lx[0] - 320)) * PIXEL_TO_METER;
+    result.offset = rawOffset; // - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
 
     #ifdef DEBUG_IMAGE_LANE
         drawPolynomial(overlay, center_fit, cv::Scalar(0, 255, 0));  // Tâm làn
@@ -436,7 +436,7 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
         slope = vy / vx;
         intercept = y0 - slope * x0;
         angle_x = calculateAngle(slope);
-
+        /*
         // Tính toán góc lệch
         if (angle_x >= 0) {
             result.angle_y = 90 - angle_x;
@@ -444,18 +444,23 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
         else {
             result.angle_y = - (90 - std::abs(angle_x));
         }
+        */
+        float y_eval = 470.0f;
 
         // Calculate cuvarute
         cv::Vec3f midFit = fitPolynomial(midpoints);
+        float slope_at_eval = 2 * midFit[0] * y_eval + midFit[1];
+        float x_center_at_eval = midFit[0] * y_eval * y_eval + midFit[1] * y_eval + midFit[2];
+        result.angle_y = calculateAngle(slope_at_eval);
         result.curvature = computeMultipleCurvatures(midFit, N, PIXEL_TO_METER);
     }
 
 
     int carPosition = 320;
-    int laneCenter = (lx[0] + rx[0]) / 2;
+    int laneCenter = midpoints[0].x;
     // Tính vector offset
-    int rawDistance = (laneCenter - carPosition) * PIXEL_TO_METER;
-    result.offset = rawDistance  - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
+    float rawDistance = (laneCenter - carPosition) * PIXEL_TO_METER;
+    result.offset = rawDistance ;// - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
 
     #ifdef DEBUG_TERMINAL_LANE
         // In kết quả để debug
@@ -590,17 +595,12 @@ vehicleState computeControlParam(const std::vector<int>& lx, const std::vector<i
 
     vehicleState states;
 
-    if (lx.size() <= 2 && rx.size() >= 3) {
+    if (lx.size() <= 1 && rx.size() >= 3) {
         states = handleRightLaneOnly(rx, overlay);
-    } else if (lx.size() >= 3 && rx.size() <= 2) {
+    } else if (lx.size() >= 3 && rx.size() <= 1) {
         states = handleLeftLaneOnly(lx, overlay);
-    } else if (lx.size() >= 3 && rx.size() >= 3) {
+    } else if (lx.size() >= 2 && rx.size() >= 2) {
         states = handleBothLanes(lx, rx, overlay);
-    }
-    else {
-        states.angle_y = 0;
-        states.curvature = std::vector<float>(N, 0.0f);
-        states.offset = 0;
     }
     return states;
 }

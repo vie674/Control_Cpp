@@ -5,6 +5,6 @@
 
 float mpcControl(Eigen::VectorXd& x0, Eigen::VectorXd& v_k);
 void mpcInit(float Q1Coff, float Q2Coff, float RCoff);
-int stanleyControl(double e, double psi, double v, double k);
+int stanleyControl(float e, float psi, float v, float k);
 
 #endif // CONTROLLER_H
