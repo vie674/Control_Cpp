@@ -16,7 +16,7 @@ void sendToSerial(LibSerial::SerialPort& serial_port, int motor_speed, int servo
 
 std::string readFromSerial(LibSerial::SerialPort& serial_port);
 
-void encoder_reader_serial(const std::string& port_name);
+void encoder_reader_serial();
 
 void encoder_reader_random();
 

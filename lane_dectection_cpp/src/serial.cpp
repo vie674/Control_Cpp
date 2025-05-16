@@ -27,7 +27,7 @@ bool initializeSerial(LibSerial::SerialPort& serial, const std::string& port_nam
 }
 
 void sendToSerial(LibSerial::SerialPort& serial_port, int motor_speed, int servo_angle) {
-    std::string msg = "M+" + std::to_string(motor_speed) + " S" + std::to_string(servo_angle) + " ";
+    std::string msg = "M-" + std::to_string(motor_speed) + " S" + std::to_string(servo_angle) + " ";
     serial_port.Write(msg);
 }
 
@@ -48,15 +48,16 @@ std::string readFromSerial(LibSerial::SerialPort& serial_port) {
 }
 
 
-void encoder_reader_serial(const std::string& port_name) {
-    if (!initializeSerial(serial_port, port_name)) {
+void encoder_reader_serial() {
+    /*
+    if (!initializeSerial(serial_port, portName)) {
         std::cerr << "[ERROR] Không thể khởi tạo cổng serial trong encoder_reader_serial." << std::endl;
         return;
     }
     else {
         std::cout << "Ket noi serial thanh cong";
     }
-
+    */  
     while (!stop_flag) {
         std::string line = readFromSerial(serial_port);  // Đọc dữ liệu từ serial port
         if (!line.empty()) {
@@ -83,6 +84,7 @@ void encoder_reader_serial(const std::string& port_name) {
             } catch (const std::exception& e) {
                 std::cerr << "[ENCODER PARSE ERROR] " << e.what() << " | Input: " << line << std::endl;
             }
+            serial_port.FlushInputBuffer();
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(30));  // Đợi 50ms
     }

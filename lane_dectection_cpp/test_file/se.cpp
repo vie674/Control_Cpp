@@ -1,112 +1,153 @@
+#include "serial.hpp"
+#include "share.hpp"
+#include "debug.hpp"
 #include <iostream>
+#include <string>
 #include <thread>
 #include <chrono>
-#include <cmath>
 #include <mutex>
-#include <atomic>
-#include <SerialStream.h>
+#include <condition_variable>
+#include <cstdlib>
+#include <exception>
+#include "LibSerial/LibSerial.h"
 
-std::mutex data_lock;
-std::atomic<bool> stop_flag(false);  // Đổi tên biến terminate để tránh xung đột
+class EncoderReader {
+private:
+    std::string portName;
+    LibSerial::SerialPort serial_port;
+    
+public:
+    EncoderReader(const std::string& port) : portName(port), encoder_ready(false), stop_flag(false), encoder_data(0.0f) {}
 
-// Dữ liệu chia sẻ giữa các luồng
-struct SharedData {
-    int encoder_value = 0;
-    double speed_mps = 0.0;
-} shared_data;
-
-using namespace std;
-using namespace LibSerial;
-
-// Cấu hình cổng UART
-const string UART_PORT = "/dev/ttyUSB0";  // Thay đổi tùy theo cổng STM32
-const unsigned long UART_BAUDRATE = 115200;
-
-// Tính vận tốc (m/s) từ số xung trong khoảng thời gian đo.
-double pulses_to_mps(int pulses) {
-    const double radius = 0.065 / 2;  // Bán kính bánh xe (m)
-    const double gear_ratio = 13.0 / 38.0;  // Tỉ số truyền từ động cơ đến bánh xe
-    const int pulses_per_rev = 11 * 4 * 19;  // Tổng số xung trên một vòng quay bánh xe
-    const double time_interval = 0.01;  // Khoảng thời gian đo (s)
-
-    // Tính số vòng quay trên giây của bánh xe (RPS - Revolutions per second)
-    double wheel_rps = ((pulses / pulses_per_rev) / time_interval) * gear_ratio;
-
-    // Tính vận tốc tuyến tính (m/s)
-    double speed = wheel_rps * (2 * M_PI * radius);
-    return speed;
-}
-
-// Hàm nhận tín hiệu từ STM32
-void receive_from_stm32(SerialStream& serial) {
-    while (!stop_flag) {
+    // Initializes the serial connection
+    bool initializeSerial() {
         try {
-            if (serial.rdbuf()->in_avail()) {
-                string raw_data;
-                getline(serial, raw_data);
-                cout << "[Receive] Raw data received: " << raw_data << endl;
+            serial_port.Open(portName);
+            serial_port.SetBaudRate(LibSerial::BaudRate::BAUD_115200);
+            serial_port.SetCharacterSize(LibSerial::CharacterSize::CHAR_SIZE_8);
+            serial_port.SetStopBits(LibSerial::StopBits::STOP_BITS_1);
+            serial_port.SetParity(LibSerial::Parity::PARITY_NONE);
+            serial_port.SetFlowControl(LibSerial::FlowControl::FLOW_CONTROL_NONE);
+            return true;
+        }
+        catch (const LibSerial::OpenFailed&) {
+            std::cerr << "Unable to open serial port: " << portName << std::endl;
+            return false;
+        }
+    }
 
-                // Phân tích dữ liệu nếu có dạng "E%d "
-                if (raw_data[0] == 'E') {
-                    try {
-                        int pulses = stoi(raw_data.substr(1));  // Lấy giá trị số xung
-                        double speed = pulses_to_mps(pulses);  // Tính vận tốc
+    // Reads data from the serial port
+    std::string readFromSerial() {
+        std::string data;
+        try {
+            if (serial_port.IsDataAvailable()) {
+                serial_port.ReadLine(data, '\n', 1);
+                return data;
+            }
+        } catch (const LibSerial::ReadTimeout&) {
+            // Handle timeout exception
+        } catch (const std::exception& e) {
+            std::cerr << "[SERIAL READ ERROR] " << e.what() << std::endl;
+        }
+        return "";
+    }
 
-                        // Cập nhật dữ liệu chia sẻ
-                        lock_guard<mutex> lock(data_lock);
-                        shared_data.encoder_value = pulses;
-                        shared_data.speed_mps = speed;
+    // Writes data to the serial port
+    void sendToSerial(int motor_speed, int servo_angle) {
+        std::string msg = "M-" + std::to_string(motor_speed) + " S" + std::to_string(servo_angle) + " ";
+        serial_port.Write(msg);
+    }
 
-                        cout << "[Receive] Pulses: " << pulses << ", Speed: " << speed << " m/s" << endl;
-                    } catch (const invalid_argument& e) {
-                        cout << "[Receive] Error parsing pulses: " << raw_data << endl;
+    // Encoder reading thread function
+    void encoderReaderSerial() {
+        if (!initializeSerial()) {
+            std::cerr << "[ERROR] Failed to initialize serial port." << std::endl;
+            return;
+        }
+
+        std::cout << "Serial port initialized successfully." << std::endl;
+
+        while (!stop_flag) {
+            std::string line = readFromSerial();  // Read data from serial port
+            if (!line.empty()) {
+                try {
+                    // Check if the line starts with 'E' (e.g., "E123 \n")
+                    if (line[0] == 'E') {
+                        size_t space_pos = line.find(' ');
+                        if (space_pos != std::string::npos) {
+                            std::string value_str = line.substr(1, space_pos - 1);
+                            int value = std::stoi(value_str);
+
+                            {
+                                std::lock_guard<std::mutex> lock(mtx);
+                                encoder_data = static_cast<float>(value);  // Convert to float
+                                encoder_ready = true;
+                                std::cout << "Encoder data: " << encoder_data << std::endl;
+                            }
+
+                            cv_encoder.notify_all();
+                        }
                     }
+                } catch (const std::exception& e) {
+                    std::cerr << "[ENCODER PARSE ERROR] " << e.what() << " | Input: " << line << std::endl;
                 }
             }
-        } catch (const exception& e) {
-            cout << "[Receive] Error: " << e.what() << endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));  // Delay for 30ms
         }
+
+        serial_port.Close();  // Close the serial port
     }
-}
 
-int main() {
-    try {
-        // Mở kết nối UART
-        SerialStream serial(UART_PORT);
-        serial.SetBaudRate(UART_BAUDRATE);  // Sử dụng số nguyên cho BaudRate
-        serial.SetCharacterSize(CharacterSize::CHAR_SIZE_8);  // Chỉnh sửa CharacterSize
-        serial.SetParity(Parity::PARITY_NONE);  // Chỉnh sửa Parity
-        serial.SetStopBits(StopBits::STOP_BITS_1);  // Chỉnh sửa StopBits
-        serial.SetFlowControl(FlowControl::FLOW_CONTROL_NONE);  // Chỉnh sửa FlowControl
-
-        // Kiểm tra kết nối
-        if (!serial.IsOpen()) {
-            cerr << "Failed to open serial port!" << endl;
-            return 1;
-        }
-
-        // Khởi tạo luồng nhận dữ liệu
-        thread recv_thread(receive_from_stm32, ref(serial));
-
-        // Hiển thị vận tốc trong vòng lặp chính
+    // Encoder reader with random data for testing
+    void encoderReaderRandom() {
         while (!stop_flag) {
+            float encoder = rand() % 360;
             {
-                lock_guard<mutex> lock(data_lock);
-                double speed = shared_data.speed_mps;
-                cout << "[Main] Speed: " << speed << " m/s" << endl;
+                std::lock_guard<std::mutex> lock(mtx);
+                encoder_data = encoder;
+                encoder_ready = true;
             }
-            this_thread::sleep_for(chrono::milliseconds(500));  // Hiển thị vận tốc mỗi 0.5 giây
+            cv_encoder.notify_all();
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));  // Delay for 50ms
         }
-
-        // Dừng luồng nhận và đóng cổng UART khi kết thúc
-        stop_flag = true;
-        recv_thread.join();
-        serial.Close();
-        cout << "\nProgram terminated." << endl;
-
-    } catch (const exception& e) {
-        cerr << "Error: " << e.what() << endl;
     }
+
+    // Stop the encoder reading process
+    void stopReading() {
+        stop_flag = true;
+    }
+
+    // Get the encoder data
+    float getEncoderData() {
+        std::lock_guard<std::mutex> lock(mtx);
+        return encoder_data;
+    }
+
+    // Wait for the encoder data to be ready
+    void waitForEncoderData() {
+        std::unique_lock<std::mutex> lock(mtx);
+        cv_encoder.wait(lock, [this]() { return encoder_ready; });
+        encoder_ready = false;
+    }
+};
+
+// Example usage of multi-threading with EncoderReader
+int main() {
+    EncoderReader encoder("/dev/ttyACM0");
+
+    // Launch encoder reading in a separate thread
+    std::thread encoder_thread(&EncoderReader::encoderReaderSerial, &encoder);
+
+    // Simulate processing in the main thread
+    for (int i = 0; i < 10; ++i) {
+        encoder.waitForEncoderData();
+        std::cout << "Received encoder data: " << encoder.getEncoderData() << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(1));  // Simulate main thread processing
+    }
+
+    // Stop reading and join the encoder thread
+    encoder.stopReading();
+    encoder_thread.join();
 
     return 0;
 }

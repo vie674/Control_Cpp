@@ -55,13 +55,13 @@ void steering_processor() {
 
     double fps = 0;     
     double lastTick = cv::getTickCount();
-
+    /*
     if (!initializeSerial(serial_port, portName)) {
     std::cerr << "[ERROR] Không thể khởi tạo cổng serial trong encoder_reader_serial." << std::endl;
     return;
     }
-
-    mpcInit(5.0, 5.0, 5.0);
+    */
+    mpcInit(10.0, 10.0, 5.0);
     Eigen::VectorXd x(4);
     Eigen::VectorXd v_k(6);
 
@@ -94,7 +94,7 @@ void steering_processor() {
 
 
         // Calculate steering control and update split angle
-        int delta = stanleyControl(states.offset, states.angle_y, 0.3, 0.2);
+        int delta = stanleyControl(states.offset, states.angle_y, 0.3, 1.4);
         //std::cout <<"--"<< states.offset << "--" << states.angle_y <<"--" << delta; 
         //int delta = mpcControl(x, v_k);
         int steeringAngle = 80 + delta;
@@ -105,11 +105,11 @@ void steering_processor() {
 
         showFPS(lastTick, fps);
         // Visualize and show results
-        //auto result = visualize(frame, warped, warped, pts1, pts2, delta, states);
-        //cv::imshow("Lane Detection", result);
-        //cv::imshow("Mask", mask);
-        //cv::imshow("left",leftImage);
-        //cv::imshow("right,",  rightImage);
+        auto result = visualize(frame, warped, warped, pts1, pts2, delta, states);
+        cv::imshow("Lane Detection", result);
+        cv::imshow("Mask", mask);
+        cv::imshow("left",leftImage);
+        cv::imshow("right,",  rightImage);
         if (cv::waitKey(10) == 27) break;
     }
 
@@ -120,12 +120,17 @@ void steering_processor() {
 
 int main() {
 
+    if (!initializeSerial(serial_port, portName)) {
+    std::cerr << "[ERROR] Không thể khởi tạo cổng serial trong encoder_reader_serial." << std::endl;
+    return 1;
+    }
+
     std::thread t1(image_reader, IMAGE_READ_FROM_CAM); // Truyền đối số IMAGE_READ_FROM_VIDEO vào image_reader
     std::thread t2(steering_processor);  // steering_processor không có đối sốh
-    std::thread t3(encoder_reader_random);  // Truyền serial_port và SERIAL_READ vào encoder_reader
-    std::thread t4(imu_reader_random, IMU_RANDOM);  // Truyền IMU_RANDOM vào imu_reader
+    std::thread t3(encoder_reader_serial) ;  // Truyền serial_port và SERIAL_READ vào encoder_reader
+    std::thread t4(imu_reader_bno055);  // Truyền IMU_RANDOM vào imu_reader
     std::thread t5(signal_receiver, 8888);  // Truyền cổng vào signal_receiver
-    std::thread t6(server_uploader, "192.168.1.105", 8890);  // Truyền địa chỉ IP và cổng vào server_uploader
+    std::thread t6(server_uploader, "192.168.1.113", 8890);  // Truyền địa chỉ IP và cổng vào server_uploader
 
     t1.join();
     t2.join();

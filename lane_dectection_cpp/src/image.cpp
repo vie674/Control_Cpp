@@ -65,8 +65,8 @@ cv::Mat perspectiveTransform(const cv::Mat& frame, std::vector<cv::Point2f>& pts
     pts1 = { 
         {0.0f + 27.0f, float(height)}, 
         {float(width), float(height)}, 
-        {float(width * 0.70), float(height * 0.65)}, 
-        {float(width * 0.30 + 27.0f), float(height * 0.65)} 
+        {float(width * 0.65), float(height * 0.65)}, 
+        {float(width * 0.35 + 27.0f), float(height * 0.65)} 
     };
 
     pts2 = { 
@@ -271,7 +271,7 @@ vehicleState handleRightLaneOnly(const std::vector<int>& rx, cv::Mat& overlay) {
     cv::Vec3f center_fit = fitPolynomial(centerPoints);
 
     // Tính toán tại y_eval
-    float y_eval = 468.0f;
+    float y_eval = 468.0f + 40.0f;
     float slope_at_eval = 2 * center_fit[0] * y_eval + center_fit[1];
     float x_center_at_eval = center_fit[0] * y_eval * y_eval + center_fit[1] * y_eval + center_fit[2];
 
@@ -279,7 +279,7 @@ vehicleState handleRightLaneOnly(const std::vector<int>& rx, cv::Mat& overlay) {
     result.curvature = computeMultipleCurvatures(center_fit, N, PIXEL_TO_METER);
 
     float rawOffset = -((PIXELS_PER_LANE / 2.0f) - std::abs(rx[0] - 320)) * PIXEL_TO_METER;
-    result.offset = rawOffset;// - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
+    result.offset = rawOffset - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
 
     #ifdef DEBUG_IMAGE_LANE
         drawPolynomial(overlay, center_fit, cv::Scalar(0, 255, 255));  // đường giữa
@@ -332,7 +332,7 @@ vehicleState handleLeftLaneOnly(const std::vector<int>& lx, cv::Mat& overlay) {
     cv::Vec3f center_fit = fitPolynomial(centerPoints);
 
     // Tính toán tại y_eval
-    float y_eval = 468.0f;
+    float y_eval = 468.0f + 40.0f;
     float slope_at_eval = 2 * center_fit[0] * y_eval + center_fit[1];
     float x_center_at_eval = center_fit[0] * y_eval * y_eval + center_fit[1] * y_eval + center_fit[2];
 
@@ -340,7 +340,7 @@ vehicleState handleLeftLaneOnly(const std::vector<int>& lx, cv::Mat& overlay) {
     result.curvature = computeMultipleCurvatures(center_fit, N, PIXEL_TO_METER);
 
     float rawOffset = ((PIXELS_PER_LANE / 2.0f) - std::abs(lx[0] - 320)) * PIXEL_TO_METER;
-    result.offset = rawOffset; // - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
+    result.offset = rawOffset - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
 
     #ifdef DEBUG_IMAGE_LANE
         drawPolynomial(overlay, center_fit, cv::Scalar(0, 255, 0));  // Tâm làn
@@ -445,7 +445,7 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
             result.angle_y = - (90 - std::abs(angle_x));
         }
         */
-        float y_eval = 470.0f;
+        float y_eval = 470.0f + 40.0f;
 
         // Calculate cuvarute
         cv::Vec3f midFit = fitPolynomial(midpoints);
@@ -460,7 +460,7 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
     int laneCenter = midpoints[0].x;
     // Tính vector offset
     float rawDistance = (laneCenter - carPosition) * PIXEL_TO_METER;
-    result.offset = rawDistance ;// - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
+    result.offset = rawDistance - DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE * sin(DEG2RAD(result.angle_y));
 
     #ifdef DEBUG_TERMINAL_LANE
         // In kết quả để debug
@@ -517,7 +517,8 @@ std::vector<float> computeMultipleCurvatures(const cv::Vec3f& coeffs, int M = 6,
     float b = coeffs[1];
 
     for (int i = 0; i < M; ++i) {
-        float y = 472.0f - i * 38.0f;  //38 diem anh -- 3cm
+        float y_eval = 472.0f;
+        float y = y_eval - i * 38.0f;  //38 diem anh -- 3cm
         float dy = 2.0f * a * y + b;
         float numerator = std::abs(2.0f * a);
         float denominator = std::pow(1.0f + dy * dy, 1.5f);
