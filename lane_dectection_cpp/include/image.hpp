@@ -4,12 +4,12 @@
 
 #define IMAGE_READ_FROM_VIDEO 1
 #define IMAGE_READ_FROM_CAM   0 
-#define PIXELS_PER_LANE 335
-#define PIXEL_TO_METER 0.29 / PIXELS_PER_LANE
+#define PIXELS_PER_LANE 440
+#define PIXEL_TO_METER (LANE_WIDTH / PIXELS_PER_LANE)
 #define DEG2RAD(deg) ((deg) * M_PI / 180.0f)
 #define DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE 0.15f
-#define DISTANCE_FROM_FRONT_AXLE_TO_COM 0.12f + 0.15f
-#define LANE_WIDTH 0.29f
+#define DISTANCE_FROM_FRONT_AXLE_TO_COM (0.12f + 0.15f)
+#define LANE_WIDTH 0.35f
 
 #include <opencv2/opencv.hpp>
 #include <vector>
@@ -68,13 +68,13 @@ std::vector<float> computeMultipleCurvatures(const cv::Vec3f& coeffs, int M , fl
 float calculateAngle(float slope);
 
 // Xử lý trường hợp chỉ có làn phải
-vehicleState handleRightLaneOnly(const std::vector<int>& rx, cv::Mat& overlay);
+vehicleState handleRightLaneOnly(const std::vector<int>& rx, cv::Mat& overlay, int& splitAngle);
 
 // Xử lý trường hợp chỉ có làn trái
-vehicleState handleLeftLaneOnly(const std::vector<int>& lx, cv::Mat& overlay);
+vehicleState handleLeftLaneOnly(const std::vector<int>& lx, cv::Mat& overlay, int& splitAngle);
 
 // Xử lý khi có cả 2 làn
-vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>& rx, cv::Mat& overlay);
+vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>& rx, cv::Mat& overlay,  int& splitAngle);
 
 // 
 void preprocessAndSplitFrame(const cv::Mat& input, const UndistortData& undistortData,

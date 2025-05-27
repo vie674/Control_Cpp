@@ -9,6 +9,9 @@
 #include <chrono>
 #include <cmath>
 
+bool right_deteted = 0;
+bool left_detected = 0;
+
 int N = 6;
 // Camera intrinsic parameters (calibration data)
 cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) <<
@@ -65,8 +68,8 @@ cv::Mat perspectiveTransform(const cv::Mat& frame, std::vector<cv::Point2f>& pts
     pts1 = { 
         {0.0f + 27.0f, float(height)}, 
         {float(width), float(height)}, 
-        {float(width * 0.65), float(height * 0.65)}, 
-        {float(width * 0.35 + 27.0f), float(height * 0.65)} 
+        {float(width * 0.7), float(height * 0.70)}, 
+        {float(width * 0.3 + 27.0f), float(height * 0.70)} 
     };
 
     pts2 = { 
@@ -111,7 +114,7 @@ void splitImageByAngle(const cv::Mat& inputImage, cv::Mat& outputLeft, cv::Mat& 
 
     // Nếu góc là 90 độ (hoặc gần 90 độ), thì tạo một đường thẳng đứng chia đôi ảnh
     if (std::abs(alpha_deg - 90) < 3) { // Kiểm tra xem góc có gần 90 độ hay không
-        for (int y = 0; y < height; ++y) {
+        for (int y = 0.45 * height; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
                 if (x < width / 2) {
                     maskLeft.at<uchar>(y, x) = 255;  // Phần bên trái
@@ -122,7 +125,7 @@ void splitImageByAngle(const cv::Mat& inputImage, cv::Mat& outputLeft, cv::Mat& 
         }
     } else {
         // Xử lý các góc khác, sử dụng toán học như bình thường
-        for (int y = 0; y < height; ++y) {
+        for (int y = 0.45 * height; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
                 // Tính toạ độ y trên đường phân chia tại x
                 int lineY = origin.y + static_cast<int>(slope * (x - origin.x));
@@ -170,7 +173,7 @@ int getBase(const cv::Mat& hist, int start, int end) {
 std::vector<int> detectLanePoints(const cv::Mat& mask, int base) {
     std::vector<int> points;
     int y = mask.rows - 8;
-    while (y > mask.rows * 0.35) {
+    while (y > mask.rows * 0.45) {
         // Đảm bảo ROI không vượt quá ảnh
         int roi_x = base - 30;
         int roi_y = y - 30; 
@@ -237,9 +240,13 @@ cv::Vec3f fitPolynomial(const std::vector<cv::Point2f>& pts) {
 
 
 // Xử lý khi chỉ có làn phải
-vehicleState handleRightLaneOnly(const std::vector<int>& rx, cv::Mat& overlay) {
+vehicleState handleRightLaneOnly(const std::vector<int>& rx, cv::Mat& overlay, int& splitAngle) {
     vehicleState result;
     if (rx.size() < 2) return result;
+
+    float slope = 0;
+    float intercept = 0;
+    float angle_x = 0;
 
     std::vector<cv::Point2f> rightPoints;
     for (size_t i = 0; i < rx.size(); ++i)
@@ -267,11 +274,28 @@ vehicleState handleRightLaneOnly(const std::vector<int>& rx, cv::Mat& overlay) {
         centerPoints.emplace_back(x_center, y_center);
     }
 
+    cv::Point2f mid1 = centerPoints[0];
+    cv::Point2f mid2 = centerPoints[centerPoints.size() - 1];
+
+    slope = (mid1.y - mid2.y) / (mid1.x - mid2.x);
+    intercept = mid1.y - slope * mid1.x;
+    angle_x = calculateAngle(slope);
+
+    // Tính toán góc lệch
+    if (angle_x >= 0) {
+        splitAngle = 90 - angle_x;
+    }
+    else {
+        splitAngle = - (90 - std::abs(angle_x));
+    }
+
+    splitAngle += 90;
+
     // Fit lại đường giữa làn từ tập điểm đã dịch
     cv::Vec3f center_fit = fitPolynomial(centerPoints);
 
     // Tính toán tại y_eval
-    float y_eval = 468.0f + 40.0f;
+    float y_eval = 468.0f;
     float slope_at_eval = 2 * center_fit[0] * y_eval + center_fit[1];
     float x_center_at_eval = center_fit[0] * y_eval * y_eval + center_fit[1] * y_eval + center_fit[2];
 
@@ -298,9 +322,13 @@ vehicleState handleRightLaneOnly(const std::vector<int>& rx, cv::Mat& overlay) {
 }
 
 
-vehicleState handleLeftLaneOnly(const std::vector<int>& lx, cv::Mat& overlay) {
+vehicleState handleLeftLaneOnly(const std::vector<int>& lx, cv::Mat& overlay, int& splitAngle) {
     vehicleState result;
     if (lx.size() < 2) return result;
+
+    float slope = 0;
+    float intercept = 0;
+    float angle_x = 0;
 
     std::vector<cv::Point2f> leftPoints;
     for (size_t i = 0; i < lx.size(); ++i)
@@ -328,11 +356,29 @@ vehicleState handleLeftLaneOnly(const std::vector<int>& lx, cv::Mat& overlay) {
         centerPoints.emplace_back(x_center, y_center);
     }
 
+    cv::Point2f mid1 = centerPoints[0];
+    cv::Point2f mid2 = centerPoints[centerPoints.size() - 1];
+
+    slope = (mid1.y - mid2.y) / (mid1.x - mid2.x);
+    intercept = mid1.y - slope * mid1.x;
+    angle_x = calculateAngle(slope);
+
+    // Tính toán góc lệch
+    if (angle_x >= 0) {
+        splitAngle = 90 - angle_x;
+    }
+    else {
+        splitAngle = - (90 - std::abs(angle_x));
+    }
+
+    splitAngle += 90;
+
     // Fit lại đường giữa làn từ tập điểm đã dịch
     cv::Vec3f center_fit = fitPolynomial(centerPoints);
 
+
     // Tính toán tại y_eval
-    float y_eval = 468.0f + 40.0f;
+    float y_eval = 468.0f;
     float slope_at_eval = 2 * center_fit[0] * y_eval + center_fit[1];
     float x_center_at_eval = center_fit[0] * y_eval * y_eval + center_fit[1] * y_eval + center_fit[2];
 
@@ -359,7 +405,7 @@ vehicleState handleLeftLaneOnly(const std::vector<int>& lx, cv::Mat& overlay) {
 }
 
 
-vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>& rx, cv::Mat& overlay) {
+vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>& rx, cv::Mat& overlay, int& splitAngle) {
     int minLength = std::min(lx.size(), rx.size());
 
     std::vector<cv::Point2f> midpoints;
@@ -412,14 +458,17 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
         // Tính toán góc lệch
         if (angle_x >= 0) {
             result.angle_y = 90 - angle_x;
+            splitAngle = 90 - angle_x;
         }
         else {
             result.angle_y = - (90 - std::abs(angle_x));
+            splitAngle =  - (90 - std::abs(angle_x));
         }
         result.curvature = std::vector<float>(N, 0.0f);
     }
 
     else if (midpoints.size() >= 3) {
+        /*
         std::vector<cv::Point2f> midToFit;
         midToFit.push_back(midpoints[0]);
         midToFit.push_back(midpoints[1]);
@@ -436,6 +485,29 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
         slope = vy / vx;
         intercept = y0 - slope * x0;
         angle_x = calculateAngle(slope);
+        */
+
+        cv::Point2f mid1 = midpoints[0];
+        cv::Point2f mid2 = midpoints[midpoints.size() - 1];
+
+        slope = (mid1.y - mid2.y) / (mid1.x - mid2.x);
+        intercept = mid1.y - slope * mid1.x;
+        angle_x = calculateAngle(slope);
+
+        // Tính toán góc lệch
+        if (angle_x >= 0) {
+            splitAngle = 90 - angle_x;
+        }
+        else {
+            splitAngle = - (90 - std::abs(angle_x));
+        }
+        
+        if (splitAngle > 10) {
+            splitAngle +=10;
+        }
+        else if (splitAngle < -10) {
+            splitAngle -=10;
+        }
         /*
         // Tính toán góc lệch
         if (angle_x >= 0) {
@@ -445,7 +517,7 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
             result.angle_y = - (90 - std::abs(angle_x));
         }
         */
-        float y_eval = 470.0f + 40.0f;
+        float y_eval = 470.0f;
 
         // Calculate cuvarute
         cv::Vec3f midFit = fitPolynomial(midpoints);
@@ -453,6 +525,7 @@ vehicleState handleBothLanes(const std::vector<int>& lx, const std::vector<int>&
         float x_center_at_eval = midFit[0] * y_eval * y_eval + midFit[1] * y_eval + midFit[2];
         result.angle_y = calculateAngle(slope_at_eval);
         result.curvature = computeMultipleCurvatures(midFit, N, PIXEL_TO_METER);
+        splitAngle += 90;
     }
 
 
@@ -587,6 +660,10 @@ void detectLaneLines(const cv::Mat& mask,
     if (lx.empty()) lx = prevLx;
     if (rx.empty()) rx = prevRx;
 
+    if (lx.size() > 2) {left_detected = 1;}
+    else {left_detected = 0;}
+    if (rx.size() > 2) {right_deteted = 1;}    
+    else {right_deteted = 0;}
     prevLx = lx;
     prevRx = rx;
 }
@@ -596,17 +673,25 @@ vehicleState computeControlParam(const std::vector<int>& lx, const std::vector<i
 
     vehicleState states;
 
-    if (lx.size() <= 1 && rx.size() >= 3) {
-        states = handleRightLaneOnly(rx, overlay);
-    } else if (lx.size() >= 3 && rx.size() <= 1) {
-        states = handleLeftLaneOnly(lx, overlay);
-    } else if (lx.size() >= 2 && rx.size() >= 2) {
-        states = handleBothLanes(lx, rx, overlay);
+    if (right_deteted == 1 && left_detected == 0) {
+        states = handleRightLaneOnly(rx, overlay, splitAngle);
+    } else if (left_detected == 1 && right_deteted == 0) {
+        states = handleLeftLaneOnly(lx, overlay, splitAngle);
+    } else if (right_deteted == 1 && left_detected == 1) {
+        states = handleBothLanes(lx, rx, overlay, splitAngle);
     }
     return states;
 }
 
 int updateSplitAngle (int steerAngle) {
+    if (steerAngle > 90) {
+        steerAngle += 10;
+    }
+    else if (steerAngle <70)
+    {
+        steerAngle -= 10;
+    } 
+
     return steerAngle + 10; //midServo = 80 => 90 - 80 = 10
 }
 

@@ -7,6 +7,7 @@
 #include <chrono>
 
 
+
 std::string portName = "/dev/ttyACM0";
 LibSerial::SerialPort serial_port;
 
@@ -28,6 +29,21 @@ bool initializeSerial(LibSerial::SerialPort& serial, const std::string& port_nam
 
 void sendToSerial(LibSerial::SerialPort& serial_port, int motor_speed, int servo_angle) {
     std::string msg = "M-" + std::to_string(motor_speed) + " S" + std::to_string(servo_angle) + " ";
+    serial_port.Write(msg);
+}
+
+void sendSpeedPWM(LibSerial::SerialPort& serial_port, int PWM_pulse) {
+    std::string msg = "M-" + std::to_string(PWM_pulse) + " ";
+    serial_port.Write(msg);
+}
+
+void sendSpeedPID(LibSerial::SerialPort& serial_port, int motor_speed) {
+    std::string msg = "V" + std::to_string(motor_speed) + " ";
+    serial_port.Write(msg);
+}
+
+void sendSteering(LibSerial::SerialPort& serial_port, int servo_angle) {
+    std::string msg = "S" + std::to_string(servo_angle) + " ";
     serial_port.Write(msg);
 }
 
@@ -72,10 +88,10 @@ void encoder_reader_serial() {
                         std::string value_str = line.substr(1, space_pos - 1);
                         // Chuyển đổi chuỗi thành số nguyên (dùng std::stoi)
                         int value = std::stoi(value_str);
-
+                        float mps = pulses_to_mps(value);
                         {
                             std::lock_guard<std::mutex> lock(mtx);
-                            encoder_data = static_cast<float>(value);  // Chuyển đổi int thành float
+                            encoder_data = static_cast<float>(mps);  // Chuyển đổi int thành float
                             encoder_ready = true;
                         }
                         cv_encoder.notify_all();
@@ -107,4 +123,14 @@ void encoder_reader_random() {
     }
 }
 
+float pulses_to_mps(int pulses) {
+    float radius = 0.065f / 2.0f;
+    float gear_ratio = 13.0f / 38.0f;
+    float pulses_per_rev = 11.0f * 4.0f * 19.0f;
+    float time_interval = 0.01f;
 
+    float wheel_rps = ((pulses / pulses_per_rev) / time_interval) * gear_ratio;
+    float speed = wheel_rps * (2.0f * M_PI * radius);
+
+    return speed;
+}

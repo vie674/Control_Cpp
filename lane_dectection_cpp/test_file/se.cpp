@@ -1,23 +1,10 @@
-#include "serial.hpp"
-#include "share.hpp"
-#include "debug.hpp"
-#include <iostream>
-#include <string>
-#include <thread>
-#include <chrono>
-#include <mutex>
-#include <condition_variable>
-#include <cstdlib>
-#include <exception>
-#include "LibSerial/LibSerial.h"
-
 class EncoderReader {
 private:
     std::string portName;
     LibSerial::SerialPort serial_port;
-    
+
 public:
-    EncoderReader(const std::string& port) : portName(port), encoder_ready(false), stop_flag(false), encoder_data(0.0f) {}
+    EncoderReader(const std::string& port) : portName(port) {}
 
     // Initializes the serial connection
     bool initializeSerial() {
@@ -78,6 +65,7 @@ public:
                             std::string value_str = line.substr(1, space_pos - 1);
                             int value = std::stoi(value_str);
 
+                            // Lock shared resources for thread safety
                             {
                                 std::lock_guard<std::mutex> lock(mtx);
                                 encoder_data = static_cast<float>(value);  // Convert to float
@@ -130,24 +118,3 @@ public:
         encoder_ready = false;
     }
 };
-
-// Example usage of multi-threading with EncoderReader
-int main() {
-    EncoderReader encoder("/dev/ttyACM0");
-
-    // Launch encoder reading in a separate thread
-    std::thread encoder_thread(&EncoderReader::encoderReaderSerial, &encoder);
-
-    // Simulate processing in the main thread
-    for (int i = 0; i < 10; ++i) {
-        encoder.waitForEncoderData();
-        std::cout << "Received encoder data: " << encoder.getEncoderData() << std::endl;
-        std::this_thread::sleep_for(std::chrono::seconds(1));  // Simulate main thread processing
-    }
-
-    // Stop reading and join the encoder thread
-    encoder.stopReading();
-    encoder_thread.join();
-
-    return 0;
-}
