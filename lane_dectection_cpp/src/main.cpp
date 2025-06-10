@@ -65,7 +65,7 @@ void steering_processor() {
     double fps = 0;     
     double lastTick = cv::getTickCount();
 
-    mpcInit(40.0, 40.0, 5.0);
+    mpcInit(1000.0, 50.0, 5.0);
     Eigen::VectorXd x(4);
     Eigen::VectorXd v_k(10);
 
@@ -74,8 +74,7 @@ void steering_processor() {
     vehicleState states;
     vehicleState priv_state {
         .curvature = {0.0f, 10.0f},
-        .angle_y = 0.0f,
-        .offset = 0.0f
+        .angle_y = 0.0f
     };
 
     while (!stop_flag) {
@@ -117,19 +116,20 @@ void steering_processor() {
         std::cout << "Offset " << states.offset << " " << "Angle " << states.angle_y; ;
         for (int i = 0; i < 10; i++) {
             //std::cout << " Curvature " << i << " " << states.curvature[i] << " ";
-            v_k(i) = states.curvature[i];
+            v_k(i) = states.curvature[i] * desired_velocity;
         }
         
 
         x(0) = states.offset;
-        x(1) = (states.offset - priv_state.offset) / 0.071;
+        x(1) =0;// (states.offset - priv_state.offset) / 0.071;
         x(2) = states.angle_y *3.14 /180;
-        x(3) = (states.angle_y - priv_state.angle_y) *3.14 /180 /0.071;
+        x(3) =0;// (states.angle_y - priv_state.angle_y) *3.14 /180 /0.071;
 
+        priv_state = states;
         // Calculate steering control and update split angle
-        int delta = stanleyControl(states.offset, states.angle_y, desired_velocity, 1.5);
+        //int delta = stanleyControl(states.offset, states.angle_y, desired_velocity, 1.75);
         //std::cout <<"--"<< states.offset << "--" << states.angle_y <<"--" << delta; 
-       // int delta = mpcControl(x, v_k);
+        int delta = mpcControl(x, v_k);
 
         int steeringAngle = 80 + delta;
         //splitAngle = updateSplitAngle(steeringAngle);
@@ -202,7 +202,7 @@ int main(int argc, char* argv[]) {
     std::thread t3(encoder_reader_serial) ;  // Truyền serial_port và SERIAL_READ vào encoder_reader
     std::thread t4(imu_reader_bno055);  // Truyền IMU_RANDOM vào imu_reader
     std::thread t5(signal_receiver, 8888);  // Truyền cổng vào signal_receiver
-    std::thread t6(server_uploader, "192.168.1.102", 8890);  // Truyền địa chỉ IP và cổng vào server_uploader
+    std::thread t6(server_uploader, "192.168.1.111", 8890);  // Truyền địa chỉ IP và cổng vào server_uploader
     std::thread t7(save_data_cal_tire);
     
     t1.join();

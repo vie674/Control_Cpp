@@ -590,7 +590,7 @@ std::vector<float> computeMultipleCurvatures(const cv::Vec3f& coeffs, int M = 10
     float b = coeffs[1];
 
     for (int i = 0; i < M; ++i) {
-        float y_eval = 472.0f;
+        float y_eval = 550;
         float y = y_eval - i * 26.0f;  //38 diem anh -- 3cm
         float dy = 2.0f * a * y + b;
         float numerator = std::abs(2.0f * a);
