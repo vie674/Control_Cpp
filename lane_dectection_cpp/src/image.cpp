@@ -12,7 +12,7 @@
 bool right_deteted = 0;
 bool left_detected = 0;
 
-int N = 6;
+int N = 10;
 // Camera intrinsic parameters (calibration data)
 cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) <<
     262.08953333143063, 0.0, 330.77574325128484,
@@ -66,10 +66,10 @@ cv::Mat perspectiveTransform(const cv::Mat& frame, std::vector<cv::Point2f>& pts
 
     // Tính toán các điểm cho phép biến đổi
     pts1 = { 
-        {0.0f + 27.0f, float(height)}, 
+        {0.0f , float(height)}, 
         {float(width), float(height)}, 
-        {float(width * 0.7), float(height * 0.70)}, 
-        {float(width * 0.3 + 27.0f), float(height * 0.70)} 
+        {float(width * 0.7), float(height * 0.65)}, 
+        {float(width * 0.3), float(height * 0.65)} 
     };
 
     pts2 = { 
@@ -584,14 +584,14 @@ float calculateAngle(float slope) {
     return -std::atan(slope) * 180.0f / CV_PI;
 }
 
-std::vector<float> computeMultipleCurvatures(const cv::Vec3f& coeffs, int M = 6, float scale_factor = PIXEL_TO_METER) {
+std::vector<float> computeMultipleCurvatures(const cv::Vec3f& coeffs, int M = 10, float scale_factor = PIXEL_TO_METER) {
     std::vector<float> curvatures;
     float a = coeffs[0];
     float b = coeffs[1];
 
     for (int i = 0; i < M; ++i) {
         float y_eval = 472.0f;
-        float y = y_eval - i * 38.0f;  //38 diem anh -- 3cm
+        float y = y_eval - i * 26.0f;  //38 diem anh -- 3cm
         float dy = 2.0f * a * y + b;
         float numerator = std::abs(2.0f * a);
         float denominator = std::pow(1.0f + dy * dy, 1.5f);
@@ -729,7 +729,7 @@ void image_reader(const bool isReadfromVideo) {
         }
 
         {
-            std::lock_guard<std::mutex> lock(mtx);
+            std::lock_guard<std::mutex> lock(ImageMtx);
             frame.copyTo(shared_frame);
         }
 

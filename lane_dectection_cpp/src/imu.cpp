@@ -9,6 +9,7 @@
 #include <iostream>
 #include <cmath>
 #include <chrono>
+#include <fstream>
 
 
 class SimpleKalman {
@@ -65,6 +66,13 @@ bool imu_read_data(int file, ImuData &data) {
     data.accel_signed = data.ax * cos(yaw_rad) + data.ay * sin(yaw_rad);
     if (std::abs(data.accel_signed) < 0.05f) data.accel_signed = 0.0f;
 
+    // Đọc gyroscope (angular velocity) để lấy yaw_rate
+    reg = BNO055_GYRO_DATA_X_LSB_ADDR;
+    if (write(file, &reg, 1) != 1 || read(file, buffer, 6) != 6) return false;
+    float gx = convertToFloat(buffer[0], buffer[1], 16.0f);
+    float gy = convertToFloat(buffer[2], buffer[3], 16.0f);
+    float gz = convertToFloat(buffer[4], buffer[5], 16.0f);
+    data.yaw_rate = gz ;//* (M_PI / 180.0f); // chuyển từ deg/s → rad/s
     return true;
 }
 
@@ -78,21 +86,23 @@ void imu_reader_random(const bool isRandom) {
             float ay = (rand() % 200 - 100) / 100.0f;
             float yaw_rad = yaw * M_PI / 180.0f;
             float a_signed = ax * cos(yaw_rad) + ay * sin(yaw_rad);
+            float yaw_rate = 0;
             if (std::abs(a_signed) < 0.05f) a_signed = 0.0f;
 
             {
-                std::lock_guard<std::mutex> lock(mtx);
+                std::lock_guard<std::mutex> lock(ImuMtx);
                 imu_data[0] = yaw;
                 imu_data[1] = pitch;
                 imu_data[2] = roll;
                 imu_data[3] = ax;
                 imu_data[4] = ay;
                 imu_data[5] = a_signed;
+                imu_data[6] = yaw_rate;
                 imu_ready = true;
             }
             cv_imu.notify_all();
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
     }
 }
 
@@ -104,23 +114,39 @@ void imu_reader_bno055() {
     }
 
     ImuData data;
+    bool first_read = true;
+    float yaw_offset = 0.0f;
+
     while (!stop_flag) {
         if (imu_read_data(file, data)) {
+
+            if (first_read) {
+                yaw_offset = data.yaw;
+                first_read = false;
+            }
+
+            float corrected_yaw = data.yaw - yaw_offset;
+            if (corrected_yaw > 180.0f) corrected_yaw -= 360.0f;
+            if (corrected_yaw < -180.0f) corrected_yaw += 360.0f;
+
             {
-                std::lock_guard<std::mutex> lock(mtx);
-                imu_data[0] = data.yaw;
+                std::lock_guard<std::mutex> lock(ImuMtx);
+                imu_data[0] = corrected_yaw;
                 imu_data[1] = data.pitch;
                 imu_data[2] = data.roll;
                 imu_data[3] = data.ax;
                 imu_data[4] = data.ay;
                 imu_data[5] = data.accel_signed;
+                imu_data[6] = data.yaw_rate;
                 imu_ready = true;
             }
+
             cv_imu.notify_all();
         } else {
             std::cerr << "Failed to read IMU data" << std::endl;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
     }
 
     close(file);

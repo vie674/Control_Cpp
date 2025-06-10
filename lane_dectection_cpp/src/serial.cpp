@@ -28,12 +28,12 @@ bool initializeSerial(LibSerial::SerialPort& serial, const std::string& port_nam
 }
 
 void sendToSerial(LibSerial::SerialPort& serial_port, int motor_speed, int servo_angle) {
-    std::string msg = "M-" + std::to_string(motor_speed) + " S" + std::to_string(servo_angle) + " ";
+    std::string msg = "M+" + std::to_string(motor_speed) + " S" + std::to_string(servo_angle) + " ";
     serial_port.Write(msg);
 }
 
 void sendSpeedPWM(LibSerial::SerialPort& serial_port, int PWM_pulse) {
-    std::string msg = "M-" + std::to_string(PWM_pulse) + " ";
+    std::string msg = "M+" + std::to_string(PWM_pulse) + " ";
     serial_port.Write(msg);
 }
 
@@ -90,7 +90,7 @@ void encoder_reader_serial() {
                         int value = std::stoi(value_str);
                         float mps = pulses_to_mps(value);
                         {
-                            std::lock_guard<std::mutex> lock(mtx);
+                            std::lock_guard<std::mutex> lock(EncMtx);
                             encoder_data = static_cast<float>(mps);  // Chuyển đổi int thành float
                             encoder_ready = true;
                         }
@@ -114,7 +114,7 @@ void encoder_reader_random() {
     while (!stop_flag) {
         float encoder = rand() % 360;
         {
-            std::lock_guard<std::mutex> lock(mtx);
+            std::lock_guard<std::mutex> lock(EncMtx);
             encoder_data = encoder;
             encoder_ready = true;
         }

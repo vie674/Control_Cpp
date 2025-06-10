@@ -4,12 +4,12 @@
 
 #define IMAGE_READ_FROM_VIDEO 1
 #define IMAGE_READ_FROM_CAM   0 
-#define PIXELS_PER_LANE 440
+#define PIXELS_PER_LANE 475 //440 //475
 #define PIXEL_TO_METER (LANE_WIDTH / PIXELS_PER_LANE)
 #define DEG2RAD(deg) ((deg) * M_PI / 180.0f)
 #define DISTANCE_FROM_BOTTOM_OF_IMAGE_TO_AXLE 0.15f
 #define DISTANCE_FROM_FRONT_AXLE_TO_COM (0.12f + 0.15f)
-#define LANE_WIDTH 0.35f
+#define LANE_WIDTH 0.34f
 
 #include <opencv2/opencv.hpp>
 #include <vector>

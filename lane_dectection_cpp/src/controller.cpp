@@ -9,8 +9,8 @@
 #include <algorithm>
 #include <cmath>
 
-const double Ts = 0.1;
-const int N = 6;
+const double Ts = 0.071f;
+const int N = 10;
 
 Eigen::MatrixXd A_d(4, 4), B1_d(4, 1), B2_d(4, 1);
 Eigen::MatrixXd AX, BU, BV, H;
@@ -29,10 +29,10 @@ Eigen::MatrixXd matrixPower(const Eigen::MatrixXd& A, int p) {
 
 void mpcInit(float Q1Coff, float Q2Coff, float RCoff) {
     double mass = 2.3;
-    double Lf = 0.12;
-    double Lr = 0.132;
-    double Caf = 70;
-    double Car = 70;
+    double Lf = 0.132;
+    double Lr = 0.12;
+    double Caf = 0.04;
+    double Car = 0.02;
     double Iz = 0.04;
     double Vx = 0.3;
 

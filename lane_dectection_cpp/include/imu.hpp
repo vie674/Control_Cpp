@@ -11,6 +11,7 @@
 #define BNO055_OPR_MODE_ADDR 0x3D
 #define BNO055_EULER_H_LSB_ADDR 0x1A
 #define BNO055_LIN_ACCEL_DATA_X_LSB_ADDR 0x28
+#define BNO055_GYRO_DATA_X_LSB_ADDR 0x14
 
 struct ImuData {
     float yaw;
@@ -19,6 +20,7 @@ struct ImuData {
     float ax;
     float ay;
     float accel_signed;
+    float yaw_rate;
 };
 
 bool imu_init(int &file);
